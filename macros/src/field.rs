@@ -10,7 +10,7 @@ pub fn field_type() -> TokenStream {
             col_type: ColumnType,
             unique: bool,
             default_value: Option<&'static str>,
-            lenth: Option<usize>,
+            length: Option<usize>,
             serial: bool // autoincrement field
         }
     }
@@ -27,8 +27,12 @@ pub fn build_definitions(fields: Fields) -> TokenStream {
             let ft = field.ty;
 
             stream.extend(quote! {
+                let col_name = stringify!(#fi);
+                let serial = col_name == "id";
+
                 let row = FieldDefinition {
-                    col_name: stringify!(#fi),
+                    col_name,
+                    serial,
                     col_type: stringify!(#ft).into(),
                     ..Default::default()
                 };
