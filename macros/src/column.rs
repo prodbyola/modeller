@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-pub fn column_types() -> TokenStream {
+pub fn column_type() -> TokenStream {
     quote! {
         #[derive(Debug, Default)]
         pub enum ColumnType {

@@ -5,10 +5,12 @@ use quote::quote;
 use syn::{Data, DataStruct, DeriveInput};
 
 use crate::{
-    column::column_types,
+    backend_type::backend_type,
+    column::column_type,
     field::{build_definitions, field_type},
 };
 
+mod backend_type;
 mod column;
 mod field;
 
@@ -20,12 +22,15 @@ pub fn derive_db_model(item: TokenStream) -> TokenStream {
     match input.data {
         Data::Struct(DataStruct { fields, .. }) => {
             let field_type = field_type();
-            let column_types = column_types();
+            let column_type = column_type();
+            let backend_type = backend_type();
+
             let field_list = build_definitions(fields);
 
             quote! {
                 #field_type
-                #column_types
+                #column_type
+                #backend_type
 
                 impl #struct_identifier {
                     fn field_definitions() -> Vec<FieldDefinition> {
