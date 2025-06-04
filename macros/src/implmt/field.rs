@@ -1,5 +1,5 @@
 use quote::ToTokens;
-use syn::{Expr, Field, Meta, meta};
+use syn::{Field, Meta};
 
 use crate::implmt::backend_type::BackendType;
 
