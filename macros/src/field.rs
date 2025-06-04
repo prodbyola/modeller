@@ -16,14 +16,6 @@ pub struct FieldDefinition {
 }
 
 impl FieldDefinition {
-    pub fn col_name(&self) -> &str {
-        &self.col_name
-    }
-
-    pub fn col_type(&self) -> &ColumnType {
-        &self.col_type
-    }
-
     pub fn to_sql(&self, bt: &BackendType) -> String {
         use BackendType::*;
         let col = &self.col_name;

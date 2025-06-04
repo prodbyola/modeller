@@ -1,12 +1,9 @@
+use std::env;
+
 use quote::ToTokens;
 use syn::{Expr, ItemStruct, Meta, Token, parse::Parse};
 
 use crate::{backend_type::BackendType, field::FieldDefinition};
-
-pub enum TableOperation {
-    Create,
-    Alter,
-}
 
 pub struct ModelDefinition {
     name: String,
@@ -14,77 +11,75 @@ pub struct ModelDefinition {
 }
 
 impl ModelDefinition {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
     pub fn fields(&self) -> &[FieldDefinition] {
         &self.fields
     }
 
-    pub fn to_sql(&self, bt: &BackendType, op: TableOperation) -> String {
-        use TableOperation::*;
+    pub fn create_table_sql(&self, bt: &BackendType) -> String {
+        let field_sqls: Vec<String> = self
+            .fields()
+            .iter()
+            .map(|field| field.to_sql(bt).trim().to_string())
+            .collect();
 
-        match op {
-            Create => {
-                let field_sqls: Vec<String> = self
-                    .fields()
-                    .iter()
-                    .map(|field| field.to_sql(bt).trim().to_string())
-                    .collect();
-
-                format!(
-                    "CREATE TABLE {} (\n\t{}\n);",
-                    self.name,
-                    field_sqls.join(",\n\t")
-                )
-            }
-            _ => unimplemented!(),
-        }
+        format!(
+            "CREATE TABLE {} (\n\t{}\n);",
+            self.name,
+            field_sqls.join(",\n\t")
+        )
     }
 }
 
 pub struct Modeller {
     bt: BackendType,
-    models: Vec<ModelDefinition>,
+    items: Vec<ItemStruct>,
 }
 
 impl Modeller {
-    pub fn models(&self) -> &[ModelDefinition] {
-        &self.models
-    }
-    pub fn create_tables(&self) -> String {
-        let models = self.models();
-        let sql: Vec<String> = models
+    fn get_create_tables_sql(&self) -> Vec<String> {
+        self.items
             .iter()
-            .map(|model| model.to_sql(&self.bt, TableOperation::Create))
-            .collect();
+            .map(|m| {
+                let model = ModelDefinition::from(m);
+                model.create_table_sql(&self.bt)
+            })
+            .collect()
+    }
 
-        format!("{}", sql.join("\n\n"))
+    pub fn models(&self) -> Vec<ModelDefinition> {
+        self.items.iter().map(|item| item.into()).collect()
+    }
+
+    pub fn bt(&self) -> &BackendType {
+        &self.bt
+    }
+
+    pub fn items(&self) -> &[ItemStruct] {
+        &self.items
     }
 }
 
 impl Parse for Modeller {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let bt = match std::env::var("DATABASE_URL") {
+        // set sqlite as default dbd
+        let bt = match env::var("MODELLER_DATABASE_URL") {
             Ok(url) => url.as_str().into(),
             Err(_) => BackendType::Sqlite,
         };
 
+        // load model definitions
         let mut models = Vec::new();
         while !input.is_empty() {
-            let s: ItemStruct = input.parse()?;
-            models.push(s.into());
-
+            models.push(input.parse()?);
             input.parse::<Token![,]>()?;
         }
 
-        Ok(Modeller { models, bt })
+        Ok(Modeller { items: models, bt })
     }
 }
 
-impl From<ItemStruct> for ModelDefinition {
-    fn from(value: ItemStruct) -> Self {
+impl From<&ItemStruct> for ModelDefinition {
+    fn from(value: &ItemStruct) -> Self {
         let name = parse_model_name(&value);
 
         let ItemStruct { fields, .. } = value;
