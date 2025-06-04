@@ -1,5 +1,5 @@
 use quote::ToTokens;
-use syn::Field;
+use syn::{Expr, Field, Meta, meta};
 
 use crate::implmt::backend_type::BackendType;
 
@@ -9,10 +9,10 @@ use super::column::ColumnType;
 pub(super) struct FieldDefinition {
     col_name: String,
     col_type: ColumnType,
-    unique: bool,
-    default_value: Option<&'static str>,
-    length: Option<usize>,
     serial: bool, // autoincrement field
+    unique: bool,
+    default_value: Option<String>,
+    length: Option<usize>,
 }
 
 impl FieldDefinition {
@@ -39,7 +39,8 @@ impl FieldDefinition {
             let unique = if self.unique { "UNIQUE" } else { "" };
             let default_value = &self
                 .default_value
-                .map(|v| format!(" DEFAULT {v}"))
+                .as_ref()
+                .map(|v| format!("DEFAULT {}", v.trim()))
                 .unwrap_or(String::new());
             format!("{col} {col_type} {unique} {default_value}")
         }
@@ -48,18 +49,76 @@ impl FieldDefinition {
 
 impl From<&Field> for FieldDefinition {
     fn from(value: &Field) -> Self {
-        let Field { ident, ty, .. } = value;
-        let col_name = ident
+        let Field {
+            ident, ty, attrs, ..
+        } = value;
+        let mut col_name = ident
             .as_ref()
             .map(|v| v.to_token_stream().to_string())
             .unwrap_or("".to_string());
 
         let col_type = ty.to_token_stream().to_string();
+        let mut serial = false;
+        let mut unique = false;
+        let mut default_value = None;
+        let mut length = None;
+
+        for attr in attrs {
+            if let Some(ident) = attr.path().get_ident() {
+                if ident == "modeller" {
+                    if let Meta::NameValue(meta) = &attr.meta {
+                        if let Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Str(value),
+                            ..
+                        }) = &meta.value
+                        {
+                            let value = value.value();
+                            for prop in value.split(",") {
+                                if ["serial", "unique"].contains(&prop) {
+                                    serial = prop == "serial";
+                                    unique = prop == "unique";
+
+                                    continue;
+                                }
+
+                                let prop_split: Vec<&str> = prop.split("=").collect();
+                                if let (Some(key), Some(value)) =
+                                    (prop_split.get(0), prop_split.get(1))
+                                {
+                                    if *key == "default" {
+                                        default_value = Some(value.to_string())
+                                    } else if *key == "length" {
+                                        match value.parse::<usize>() {
+                                            Ok(len) => length = Some(len),
+                                            Err(_) => panic!(
+                                                r#"unable to parse attr "length" for field "{col_name}"."#
+                                            ),
+                                        }
+                                    } else if *key == "name" {
+                                        col_name = value.to_string()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // if ["serial", "unique"].contains(&ident_str) {
+                //     serial = ident == "serial";
+                //     unique = ident == "unique";
+
+                //     continue;
+                // }
+            }
+        }
 
         FieldDefinition {
             col_name,
             col_type: col_type.as_str().into(),
-            ..Default::default()
+            serial,
+            unique,
+            default_value,
+            length,
         }
     }
 }

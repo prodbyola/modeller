@@ -95,9 +95,9 @@ impl From<ItemStruct> for ModelDefinition {
     }
 }
 
-/// Parse the model name as table name.
+/// Parse the model name as a valid database table name.
 ///
-/// We first seek if model struct has a #[table_name = ".."] attribute.
+/// We first seek if model struct has a #\[table_name = ".."] attribute.
 /// Otherwise we parse the struct name as a valid database table name.
 fn parse_model_name(model: &ItemStruct) -> String {
     let mut name = None;

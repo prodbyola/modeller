@@ -16,7 +16,7 @@ impl ColumnType {
 
         let len_str = len.map(|v| format!("({v})")).unwrap_or(String::new());
 
-        let mut sql = match self {
+        let sql = match self {
             VarChar => format!("{}{len_str}", self.to_str()),
             _ => format!("{}", self.to_str()),
         };
