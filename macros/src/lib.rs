@@ -8,11 +8,13 @@ use crate::{
     backend_type::backend_type,
     column::column_type,
     field::{build_definitions, field_type},
+    implmt::impl_define_models,
 };
 
 mod backend_type;
 mod column;
 mod field;
+mod implmt;
 
 #[proc_macro_derive(Model)]
 pub fn derive_db_model(item: TokenStream) -> TokenStream {
@@ -43,4 +45,9 @@ pub fn derive_db_model(item: TokenStream) -> TokenStream {
         _ => panic!("model can only be derived from structs"),
     }
     .into()
+}
+
+#[proc_macro]
+pub fn define_models(stream: TokenStream) -> TokenStream {
+    impl_define_models(stream)
 }
