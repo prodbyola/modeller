@@ -1,7 +1,7 @@
 use quote::ToTokens;
 use syn::{Expr, ItemStruct, Meta, Token, parse::Parse};
 
-use crate::implmt::{backend_type::BackendType, field::FieldDefinition};
+use crate::{backend_type::BackendType, field::FieldDefinition};
 
 pub enum TableOperation {
     Create,
@@ -44,12 +44,12 @@ impl ModelDefinition {
     }
 }
 
-pub struct ParsedModels {
+pub struct Modeller {
     bt: BackendType,
     models: Vec<ModelDefinition>,
 }
 
-impl ParsedModels {
+impl Modeller {
     pub fn models(&self) -> &[ModelDefinition] {
         &self.models
     }
@@ -64,7 +64,7 @@ impl ParsedModels {
     }
 }
 
-impl Parse for ParsedModels {
+impl Parse for Modeller {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let bt = match std::env::var("DATABASE_URL") {
             Ok(url) => url.as_str().into(),
@@ -79,7 +79,7 @@ impl Parse for ParsedModels {
             input.parse::<Token![,]>()?;
         }
 
-        Ok(ParsedModels { models, bt })
+        Ok(Modeller { models, bt })
     }
 }
 
