@@ -57,7 +57,7 @@ impl From<&Field> for FieldDefinition {
             .map(|v| v.to_token_stream().to_string())
             .unwrap_or("".to_string());
 
-        let col_type = ty.to_token_stream().to_string();
+        let mut col_type = ty.into();
         let mut serial = false;
         let mut unique = false;
         let mut default_value = None;
@@ -66,55 +66,45 @@ impl From<&Field> for FieldDefinition {
         for attr in attrs {
             if let Some(ident) = attr.path().get_ident() {
                 if ident == "modeller" {
-                    if let Meta::NameValue(meta) = &attr.meta {
-                        if let Expr::Lit(syn::ExprLit {
-                            lit: syn::Lit::Str(value),
-                            ..
-                        }) = &meta.value
-                        {
-                            let value = value.value();
-                            for prop in value.split(",") {
-                                if ["serial", "unique"].contains(&prop) {
-                                    serial = prop == "serial";
-                                    unique = prop == "unique";
+                    if let Meta::List(meta) = &attr.meta {
+                        let value = meta.tokens.to_string();
+                        for prop in value.split(",") {
+                            let prop = prop.trim();
+                            if ["serial", "unique"].contains(&prop) {
+                                serial = prop == "serial";
+                                unique = prop == "unique";
 
-                                    continue;
-                                }
+                                continue;
+                            }
 
-                                let prop_split: Vec<&str> = prop.split("=").collect();
-                                if let (Some(key), Some(value)) =
-                                    (prop_split.get(0), prop_split.get(1))
-                                {
-                                    if *key == "default" {
-                                        default_value = Some(value.to_string())
-                                    } else if *key == "length" {
-                                        match value.parse::<usize>() {
-                                            Ok(len) => length = Some(len),
-                                            Err(_) => panic!(
-                                                r#"unable to parse attr "length" for field "{col_name}"."#
-                                            ),
-                                        }
-                                    } else if *key == "name" {
-                                        col_name = value.to_string()
+                            let prop_split: Vec<&str> = prop.split("=").collect();
+                            if let (Some(key), Some(value)) = (prop_split.get(0), prop_split.get(1))
+                            {
+                                let key = key.trim();
+                                if key == "default" {
+                                    default_value = Some(value.to_string())
+                                } else if key == "length" {
+                                    match value.parse::<usize>() {
+                                        Ok(len) => length = Some(len),
+                                        Err(_) => panic!(
+                                            r#"unable to parse attr "length" for field "{col_name}"."#
+                                        ),
                                     }
+                                } else if key == "name" {
+                                    col_name = value.to_string()
+                                } else if key == "type" {
+                                    col_type = ColumnType::from(*value);
                                 }
                             }
                         }
                     }
                 }
-
-                // if ["serial", "unique"].contains(&ident_str) {
-                //     serial = ident == "serial";
-                //     unique = ident == "unique";
-
-                //     continue;
-                // }
             }
         }
 
         FieldDefinition {
             col_name,
-            col_type: col_type.as_str().into(),
+            col_type,
             serial,
             unique,
             default_value,

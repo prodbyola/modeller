@@ -1,3 +1,6 @@
+use quote::ToTokens;
+use syn::Type;
+
 #[derive(Debug, Default)]
 pub(super) enum ColumnType {
     Int8,
@@ -40,28 +43,61 @@ impl ColumnType {
             Nullable(inner) => inner.to_str(),
         }
     }
+
+    pub fn from_type_str(ty: &str) -> Self {
+        use ColumnType::*;
+
+        match ty {
+            "u64" | "i64" => Int64,
+            "u32" | "i32" => Int32,
+            "u16" | "i16" => Int16,
+            "u8" | "i8" => Int8,
+            "String" | "str" => VarChar,
+            "Text" => Text,
+            _ => panic!("ColumnDefinition not implemented for {ty}"),
+        }
+    }
 }
 
 impl<'a> From<&'a str> for ColumnType {
     fn from(ty: &'a str) -> Self {
         use ColumnType::*;
 
+        if ty.starts_with("NULLABLE") {
+            let split: Vec<&str> = ty.split(" ").collect();
+            if let Some(value) = split.get(1) {
+                let inner = Box::new(value.trim().into());
+                Nullable(inner)
+            } else {
+                panic!("provide field type for a nullable field")
+            }
+        } else {
+            match ty {
+                "BIGINT" => Int64,
+                "INTEGER" => Int32,
+                "SMALLINT" => Int16,
+                "BIT" => Int8,
+                "VARCHAR" => VarChar,
+                "TEXT" => Text,
+                _ => panic!("ColumnDefinition not implemented for {ty}"),
+            }
+        }
+    }
+}
+
+impl From<&Type> for ColumnType {
+    fn from(ty: &Type) -> Self {
+        use ColumnType::*;
+        let ty = ty.to_token_stream().to_string();
+        let ty = ty.trim();
+
         if ty.starts_with("Option") {
             let rem_opt = ty.trim_start_matches("Option < ");
             let trimmed = rem_opt.trim_end_matches(" >");
-
-            let inner = Box::new(trimmed.into());
+            let inner = Box::new(ColumnType::from_type_str(trimmed));
             Nullable(inner)
         } else {
-            match ty {
-                "u64" | "i64" => Int64,
-                "u32" | "i32" => Int32,
-                "u16" | "i16" => Int16,
-                "u8" | "i8" => Int8,
-                "String" | "str" => VarChar,
-                "Text" => Text,
-                _ => panic!("ColumnDefinition not implemented for {ty}"),
-            }
+            ColumnType::from_type_str(ty)
         }
     }
 }
