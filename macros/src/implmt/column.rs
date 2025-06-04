@@ -11,7 +11,7 @@ pub(super) enum ColumnType {
 }
 
 impl ColumnType {
-    pub fn to_sql(&self, len: Option<usize>) -> String {
+    pub fn to_sql(&self, len: &Option<usize>) -> String {
         use ColumnType::*;
 
         let len_str = len.map(|v| format!("({v})")).unwrap_or(String::new());
