@@ -63,94 +63,6 @@ fn impl_define_models(stream: TokenStream) -> TokenStream {
     quote! {
         #bt_quote
         #(#original_structs)*
-
-        struct Modeller {
-            bt: BackendType,
-            db_url: String,
-            db_pool: RBatis,
-            migrations_dir: String,
-        };
-
-        impl Modeller {
-            fn new() -> Result<Self, std::env::VarError> {
-                let db_url = std::env::var("MODELLER_DATABASE_URL")?;
-                let bt = db_url.as_str().into();
-                let migrations_dir = std::env::var("MODELLER_MIGRATIONS_DIR")?;
-                let db_pool = RBatis::new();
-
-                let s = Self {
-                    db_pool,
-                    db_url,
-                    migrations_dir,
-                    bt
-                };
-
-                Ok(s)
-            }
-
-            fn create_sqls() {
-                #(println!("{}", #struct_idents::create_sql());)*
-            }
-
-            /// initializes modeller.
-            /// - attempts to connect to the database
-            /// - create database "migrations" table if it doesn't exist
-            /// - create "migrations" directory and metadata file if they don't exist.
-            pub async fn init(&self) {
-                // perform init
-                self.connect().await;
-                self.create_migrations_table().await;
-                self.create_migrations_folder().await;
-            }
-
-            async fn create_migrations_table(&self) {
-                let query = r#"
-                    CREATE TABLE IF NOT EXISTS mmm_migrations (
-                        filename VARCHAR(200) NOT NULL UNIQUE,
-                        run_status BOOLEAN DEFAULT false
-                    )
-                "#;
-
-                if let Err(err) = self.db_pool.exec(&query, vec![]).await {
-                    panic!("unable to create migrations table: {err}");
-                }
-            }
-
-            async fn create_migrations_folder(&self) {
-                let dir = Path::new(&self.migrations_dir);
-                let dir_exists = dir.exists() && dir.is_dir();
-
-                if !dir_exists {
-                    if let Err(err) = tokio::fs::create_dir_all(dir).await {
-                        panic!("unable to create migations dir: {err}");
-                    }
-                }
-            }
-
-            async fn connect(&self) {
-                use BackendType::*;
-                let rb = &self.db_pool;
-                let url = &self.db_url;
-
-                match self.bt {
-                    Sqlite => {
-                        if let Err(err) = rb.link(SqliteDriver {}, url).await {
-                            panic!("{err}")
-                        }
-                    }
-                    MySql => {
-                        if let Err(err) = rb.link(MysqlDriver {}, url).await {
-                            panic!("{err}")
-                        }
-                    }
-                    Postgres => {
-                        if let Err(err) = rb.link(PgDriver {}, url).await {
-                            panic!("{err}")
-                        }
-                    }
-                }
-            }
-        }
     }
     .into()
 }
@@ -176,6 +88,6 @@ fn strip_field_attrs(mut field: Field) -> Field {
 }
 
 #[proc_macro]
-pub fn define_models(stream: TokenStream) -> TokenStream {
+pub fn analyze_models(stream: TokenStream) -> TokenStream {
     impl_define_models(stream)
 }

@@ -68,13 +68,13 @@ impl Parse for Modeller {
         };
 
         // load model definitions
-        let mut models = Vec::new();
+        let mut items = Vec::new();
         while !input.is_empty() {
-            models.push(input.parse()?);
+            items.push(input.parse()?);
             input.parse::<Token![,]>()?;
         }
 
-        Ok(Modeller { items: models, bt })
+        Ok(Modeller { items, bt })
     }
 }
 

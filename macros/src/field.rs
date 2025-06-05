@@ -1,9 +1,7 @@
+use crate::backend_type::BackendType;
+use crate::column::ColumnType;
 use quote::ToTokens;
 use syn::{Field, Meta};
-
-use crate::backend_type::BackendType;
-
-use crate::column::ColumnType;
 
 #[derive(Debug, Default)]
 pub struct FieldDefinition {
