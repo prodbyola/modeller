@@ -1,6 +1,6 @@
 use std::{env, fmt::Display, io};
 
-use definitions::{serde, serde_json};
+use definitions::serde_json;
 
 pub type OpResult<T> = Result<T, Error>;
 

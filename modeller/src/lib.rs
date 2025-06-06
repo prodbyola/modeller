@@ -43,7 +43,6 @@ macro_rules! define_models {
             }
         ),*
     ) => {
-        use definitions::core::DefinitionStream;
         use modeller_parser::parse_models;
         use crate::implementor::Modeller;
 
@@ -61,7 +60,7 @@ macro_rules! define_models {
             ),*,
         }
 
-        pub fn modeller_stream() -> DefinitionStream {
+        pub fn modeller_stream() -> Vec<String> {
             get_raw_definitions()
         }
 
@@ -106,7 +105,7 @@ mod tests {
         }
 
         let stream = modeller_stream();
-        let modeller = get_modeller(stream.models());
+        let modeller = get_modeller(&stream);
 
         modeller.run().await?;
 

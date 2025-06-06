@@ -42,4 +42,9 @@ define_models! {
 // 	age INTEGER  DEFAULT 18,
 // 	bio TEXT
 // );
+
+// You can still access your models anywhere depending
+// on visibility
+impl TestModel{}
+impl AnotherModel{}
 ```

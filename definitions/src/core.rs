@@ -4,8 +4,8 @@ use syn::{ItemStruct, Token, parse::Parse};
 use crate::{backend_type::BackendType, model::ModelDefinition};
 
 pub struct DefinitionStream {
-    pub items: Vec<ItemStruct>,
-    pub models: Vec<String>,
+    items: Vec<ItemStruct>,
+    // pub models: Vec<String>,
 }
 
 impl DefinitionStream {
@@ -13,8 +13,17 @@ impl DefinitionStream {
         &self.items
     }
 
-    pub fn models(&self) -> &[String] {
-        &self.models
+    pub fn models(&self) -> Vec<String> {
+        let ms = self
+            .items
+            .iter()
+            .map(|item| {
+                let def = ModelDefinition::from(item);
+                serde_json::to_string(&def).unwrap_or(String::new())
+            })
+            .collect();
+
+        ms
     }
 }
 
@@ -24,13 +33,6 @@ pub struct Definitions {
 }
 
 impl Definitions {
-    pub fn get_create_tables_sql(&self) -> Vec<String> {
-        self.models
-            .iter()
-            .map(|m| m.create_table_sql(&self.bt))
-            .collect()
-    }
-
     pub fn bt(&self) -> &BackendType {
         &self.bt
     }
@@ -38,12 +40,6 @@ impl Definitions {
 
 impl Parse for DefinitionStream {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        // set sqlite as default dbd
-        // let bt = match env::var("MODELLER_DATABASE_URL") {
-        //     Ok(url) => url.as_str().into(),
-        //     Err(_) => BackendType::Sqlite,
-        // };
-
         // load model definitions
         let mut items = Vec::new();
         let mut models = Vec::new();
@@ -59,18 +55,16 @@ impl Parse for DefinitionStream {
             input.parse::<Token![,]>()?;
         }
 
-        Ok(DefinitionStream { items, models })
+        Ok(DefinitionStream { items })
     }
 }
 
 impl ToTokens for DefinitionStream {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        let DefinitionStream { models, .. } = self;
-
+        let models = self.models();
         tokens.extend(quote! {
-            DefinitionStream {
-                models: vec![#(#models.to_string()),*],
-                items: vec![],
+            fn def_streams_list() -> Vec<String> {
+                vec![#(#models.to_string()),*]
             }
         });
     }
