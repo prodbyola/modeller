@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::{ToTokens, TokenStreamExt, quote};
+use quote::{ToTokens, quote};
 
 pub enum BackendType {
     MySql,

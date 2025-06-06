@@ -17,6 +17,7 @@ impl ModelDefinition {
     }
 
     pub fn create_table_sql(&self, bt: &BackendType) -> String {
+        let table_name = &self.name;
         let field_sqls: Vec<String> = self
             .fields()
             .iter()
@@ -24,8 +25,7 @@ impl ModelDefinition {
             .collect();
 
         format!(
-            "CREATE TABLE {} (\n\t{}\n);",
-            self.name,
+            "DROP TABLE IF EXISTS {table_name};\nCREATE TABLE {table_name} (\n\t{}\n);",
             field_sqls.join(",\n\t")
         )
     }

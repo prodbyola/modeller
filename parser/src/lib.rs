@@ -10,7 +10,7 @@ fn impl_parse_models(stream: TokenStream) -> TokenStream {
     let def_stream = parse_macro_input!(stream as DefinitionStream);
     let items = def_stream.items();
 
-    let original_structs = items.into_iter().enumerate().map(|(i, item)| {
+    let original_structs = items.into_iter().map(|item| {
         let vis = &item.vis;
         let attrs = &item.attrs;
         let attrs: Vec<&Attribute> = attrs
