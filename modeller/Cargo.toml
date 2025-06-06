@@ -1,0 +1,16 @@
+[package]
+name = "modeller"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+modeller_parser = { path = "../parser" }
+definitions = { path = "../definitions" }
+tokio = { version = "1.45.1", features = ["fs"] }
+
+rbs = { version = "4.6" }
+rbatis = { version = "4.6" }
+rbdc-sqlite = { version = "4.6" }
+rbdc-mysql = { version = "4.6" }
+rbdc-pg = { version = "4.6" }
+chrono = "0.4.41"
