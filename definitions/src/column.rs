@@ -1,7 +1,8 @@
 use quote::ToTokens;
+use serde::{Deserialize, Serialize};
 use syn::Type;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub(super) enum ColumnType {
     Int8,
     Int16,

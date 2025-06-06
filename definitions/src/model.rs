@@ -1,10 +1,11 @@
-use std::env;
-
-use quote::ToTokens;
-use syn::{Expr, ItemStruct, Meta, Token, parse::Parse};
+use core::panic;
 
 use crate::{backend_type::BackendType, field::FieldDefinition};
+use quote::{ToTokens, quote};
+use serde::{Deserialize, Serialize};
+use syn::{Expr, ItemStruct, Meta};
 
+#[derive(Serialize, Deserialize)]
 pub struct ModelDefinition {
     name: String,
     fields: Vec<FieldDefinition>,
@@ -30,51 +31,12 @@ impl ModelDefinition {
     }
 }
 
-pub struct Modeller {
-    bt: BackendType,
-    items: Vec<ItemStruct>,
-}
-
-impl Modeller {
-    fn get_create_tables_sql(&self) -> Vec<String> {
-        self.items
-            .iter()
-            .map(|m| {
-                let model = ModelDefinition::from(m);
-                model.create_table_sql(&self.bt)
-            })
-            .collect()
-    }
-
-    pub fn models(&self) -> Vec<ModelDefinition> {
-        self.items.iter().map(|item| item.into()).collect()
-    }
-
-    pub fn bt(&self) -> &BackendType {
-        &self.bt
-    }
-
-    pub fn items(&self) -> &[ItemStruct] {
-        &self.items
-    }
-}
-
-impl Parse for Modeller {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        // set sqlite as default dbd
-        let bt = match env::var("MODELLER_DATABASE_URL") {
-            Ok(url) => url.as_str().into(),
-            Err(_) => BackendType::Sqlite,
-        };
-
-        // load model definitions
-        let mut items = Vec::new();
-        while !input.is_empty() {
-            items.push(input.parse()?);
-            input.parse::<Token![,]>()?;
+impl ToTokens for ModelDefinition {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        match serde_json::to_string(&self) {
+            Ok(def) => tokens.extend(quote! {#def}),
+            Err(err) => panic!("unable to strigify model definition: {err}"),
         }
-
-        Ok(Modeller { items, bt })
     }
 }
 

@@ -176,6 +176,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "definitions"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_json",
+ "syn",
+]
+
+[[package]]
 name = "der"
 version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -728,7 +739,8 @@ dependencies = [
 name = "modeller"
 version = "0.1.0"
 dependencies = [
- "modeller_macros",
+ "definitions",
+ "modeller_parser",
  "rbatis",
  "rbdc-mysql",
  "rbdc-pg",
@@ -738,9 +750,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "modeller_macros"
+name = "modeller_parser"
 version = "0.1.0"
 dependencies = [
+ "definitions",
  "proc-macro2",
  "quote",
  "syn",

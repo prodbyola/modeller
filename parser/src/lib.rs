@@ -2,19 +2,13 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{Attribute, Field, Fields, Ident, Path, parse_macro_input};
+use syn::{Attribute, Field, Fields, Path, parse_macro_input};
 
-use crate::modeller::Modeller;
+use definitions::core::DefinitionStream;
 
-mod backend_type;
-mod column;
-mod field;
-mod modeller;
-
-fn impl_define_models(stream: TokenStream) -> TokenStream {
-    let modeller = parse_macro_input!(stream as Modeller);
-    let models = modeller.models();
-    let items = modeller.items();
+fn impl_parse_models(stream: TokenStream) -> TokenStream {
+    let def_stream = parse_macro_input!(stream as DefinitionStream);
+    let items = def_stream.items();
 
     let original_structs = items.into_iter().enumerate().map(|(i, item)| {
         let vis = &item.vis;
@@ -38,36 +32,32 @@ fn impl_define_models(stream: TokenStream) -> TokenStream {
             _ => quote! {},
         };
 
-        let create_sql = models
-            .get(i)
-            .map(|m| m.create_table_sql(modeller.bt()))
-            .unwrap_or(String::new());
-
         quote! {
             #(#attrs)*
             #vis struct #ident #generics #fields
-
-            impl #ident {
-                fn create_sql() -> String {
-                    #create_sql.to_string()
-                }
-            }
         }
     });
 
-    let bt_src = std::fs::read_to_string("macros/src/backend_type.rs")
-        .expect("unable to load bt source file.");
-    let bt_quote: syn::File = syn::parse_file(&bt_src).expect("unable to parse bt source");
-    let struct_idents: Vec<&Ident> = items.iter().map(|item| &item.ident).collect();
-
     quote! {
-        #bt_quote
+
         #(#original_structs)*
+
+        fn get_raw_definitions() -> DefinitionStream {
+            #def_stream
+        }
+
     }
     .into()
 }
 
-/// Helper to filter out undesired attributes (e.g., "serde", "deprecated")
+/// Once sql_maker is done analyzing models and extracting sql,
+/// we remove all attributes defined for modeller.
+///
+///  This helper removes modeller attributes in order to avoid
+/// "attr not found" error.
+///
+/// We pass attribute instance and an `ident_key` str that
+/// reprensents the modeller attribute we'd link to remove
 fn should_keep_attr(attr: &Attribute, ident_key: &'static str) -> bool {
     let Path { segments, .. } = attr.path();
     if let Some(seg) = segments.first() {
@@ -88,6 +78,8 @@ fn strip_field_attrs(mut field: Field) -> Field {
 }
 
 #[proc_macro]
-pub fn analyze_models(stream: TokenStream) -> TokenStream {
-    impl_define_models(stream)
+/// Parses Rust struct models into `ModelDefinitions` and
+/// other types that can be used by modeller.
+pub fn parse_models(stream: TokenStream) -> TokenStream {
+    impl_parse_models(stream)
 }

@@ -1,9 +1,10 @@
 use crate::backend_type::BackendType;
 use crate::column::ColumnType;
 use quote::ToTokens;
+use serde::{Deserialize, Serialize};
 use syn::{Field, Meta};
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct FieldDefinition {
     col_name: String,
     col_type: ColumnType,
