@@ -13,14 +13,26 @@ impl DefinitionStream {
         &self.items
     }
 
-    pub fn raw(&self) -> Vec<u8> {
+    pub fn raw(&self) -> Result<Vec<u8>, String> {
         let config = config::standard();
-        let defs: Vec<ModelDefinition> = self.items.iter().map(ModelDefinition::from).collect();
+        let mut defs: Vec<ModelDefinition> = Vec::new();
 
-        match bincode::encode_to_vec(&defs, config) {
-            Ok(raw) => raw,
-            Err(_) => vec![],
+        for item in &self.items {
+            let def = ModelDefinition::from(item);
+            let name_exists = defs.iter().find(|d| d.name() == def.name());
+
+            if name_exists.is_some() {
+                return Err(format!(
+                    "duplicate table name \"{}\". tables cannot have duplicate names.",
+                    def.name()
+                ));
+            }
+
+            defs.push(def);
         }
+
+        let raw = bincode::encode_to_vec(&defs, config).map_err(|err| err.to_string())?;
+        Ok(raw)
     }
 }
 
@@ -53,7 +65,11 @@ impl Parse for DefinitionStream {
 
 impl ToTokens for DefinitionStream {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        let bytes = self.raw();
+        let bytes = match self.raw() {
+            Ok(raw) => raw,
+            Err(err) => panic!("{}", err),
+        };
+
         tokens.extend(quote! {
             pub fn modeller_definition_streams() -> Vec<u8> {
                 vec![#(#bytes),*]

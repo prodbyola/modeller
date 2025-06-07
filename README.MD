@@ -1,7 +1,6 @@
 # MODELLER
 Define database schema, create migrations and run migration queries all from Rust structs.
 
-
 Example:
 ```rust
 // defining models
@@ -48,3 +47,5 @@ define_models! {
 impl TestModel{}
 impl AnotherModel{}
 ```
+
+Please see flow description for [how it works](#FLOW.MD).

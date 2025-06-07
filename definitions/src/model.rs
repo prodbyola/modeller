@@ -10,6 +10,10 @@ pub struct ModelDefinition {
 }
 
 impl ModelDefinition {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     pub fn fields(&self) -> &[FieldDefinition] {
         &self.fields
     }

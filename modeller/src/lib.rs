@@ -73,7 +73,6 @@ mod tests {
     #[tokio::test]
     async fn test_modeller() -> OpResult<()> {
         define_models! {
-            #[table_name = "custom_table_name"]
             struct TestModel {
                 id: u64,
                 country: Option<String>,
