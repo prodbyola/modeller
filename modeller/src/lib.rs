@@ -16,7 +16,7 @@ fn metadata_filename() -> String {
 }
 
 fn generate_migration_filename(mig_dir: &str) -> String {
-    let now = Utc::now().to_string();
+    let now = Utc::now().timestamp().to_string();
     format!("{}/migration_{now}.sql", mig_dir)
 }
 
