@@ -4,5 +4,4 @@ pub mod core;
 pub mod field;
 pub mod model;
 
-pub use serde;
-pub use serde_json;
+pub use bincode;

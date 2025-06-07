@@ -1,7 +1,5 @@
 use std::{env, fmt::Display, io};
 
-use definitions::serde_json;
-
 pub type OpResult<T> = Result<T, Error>;
 
 #[derive(Debug)]
@@ -40,11 +38,5 @@ impl From<io::Error> for Error {
 impl From<rbatis::Error> for Error {
     fn from(value: rbatis::Error) -> Self {
         Error::DBError(value)
-    }
-}
-
-impl From<serde_json::Error> for Error {
-    fn from(value: serde_json::Error) -> Self {
-        Error::ParseError(value.to_string())
     }
 }

@@ -60,11 +60,7 @@ macro_rules! define_models {
             ),*,
         }
 
-        pub fn modeller_stream() -> Vec<String> {
-            get_raw_definitions()
-        }
-
-        pub fn get_modeller(models: &[String]) -> Modeller {
+        pub fn get_modeller(models: &[u8]) -> Modeller {
             Modeller::new(models)
         }
     };
@@ -104,8 +100,8 @@ mod tests {
             }
         }
 
-        let stream = modeller_stream();
-        let modeller = get_modeller(&stream);
+        let streams = modeller_definition_streams();
+        let modeller = get_modeller(&streams);
 
         modeller.run().await?;
 

@@ -1,10 +1,11 @@
+use definitions::bincode::{self, config};
 use std::path::Path;
 
 use crate::{
     DB_URL_KEY, DEFAULT_DB, DEFAULT_MIG_DIR, MIG_DIR_KEY, MIG_TABLE_NAME, errors::OpResult,
     generate_migration_filename, metadata_filename, open_file,
 };
-use definitions::{backend_type::BackendType, model::ModelDefinition, serde_json};
+use definitions::{backend_type::BackendType, model::ModelDefinition};
 use rbatis::RBatis;
 use rbdc_mysql::MysqlDriver;
 use rbdc_pg::PgDriver;
@@ -16,11 +17,11 @@ pub struct Modeller<'a> {
     db_url: String,
     db_pool: RBatis,
     migrations_dir: String,
-    raw: &'a [String],
+    raw: &'a [u8],
 }
 
 impl<'a> Modeller<'a> {
-    pub fn new(raw_models: &'a [String]) -> Self {
+    pub fn new(raw: &'a [u8]) -> Self {
         let db_url = std::env::var(DB_URL_KEY).unwrap_or(DEFAULT_DB.to_string());
         let migrations_dir = std::env::var(MIG_DIR_KEY).unwrap_or(DEFAULT_MIG_DIR.to_string());
         let bt = db_url.as_str().into();
@@ -31,7 +32,7 @@ impl<'a> Modeller<'a> {
             db_url,
             migrations_dir,
             bt,
-            raw: raw_models,
+            raw,
         }
     }
 
@@ -115,9 +116,8 @@ impl<'a> Modeller<'a> {
         file.write_all(mig_content.as_bytes()).await?;
 
         // write metadata
-        let raw_content = serde_json::to_string(&self.raw)?;
         let mut file = open_file(&metadata_filename()).await?;
-        file.write_all(raw_content.as_bytes()).await?;
+        file.write_all(&self.raw).await?;
 
         // run the migration
         self.db_pool.exec(&mig_content, vec![]).await?;
@@ -133,11 +133,10 @@ impl<'a> Modeller<'a> {
     }
 
     fn models(&self) -> Vec<ModelDefinition> {
-        self.raw
-            .iter()
-            .map(|rm| {
-                serde_json::from_str(rm).expect("unable to parse model definition from raw_str")
-            })
-            .collect()
+        let config = config::standard();
+        match bincode::decode_from_slice(&self.raw, config) {
+            Ok((encoded, _)) => encoded,
+            Err(_) => vec![],
+        }
     }
 }

@@ -1,11 +1,9 @@
-use core::panic;
-
 use crate::{backend_type::BackendType, field::FieldDefinition};
-use quote::{ToTokens, quote};
-use serde::{Deserialize, Serialize};
+use bincode::{Decode, Encode};
+use quote::ToTokens;
 use syn::{Expr, ItemStruct, Meta};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Encode, Decode)]
 pub struct ModelDefinition {
     name: String,
     fields: Vec<FieldDefinition>,
@@ -31,19 +29,18 @@ impl ModelDefinition {
     }
 }
 
-impl ToTokens for ModelDefinition {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        match serde_json::to_string(&self) {
-            Ok(def) => tokens.extend(quote! {#def}),
-            Err(err) => panic!("unable to strigify model definition: {err}"),
-        }
-    }
-}
+// impl ToTokens for ModelDefinition {
+//     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+//         match &self.encode(encoder) {
+//             Ok(def) => tokens.extend(quote! {#def}),
+//             Err(err) => panic!("unable to strigify model definition: {err}"),
+//         }
+//     }
+// }
 
 impl From<&ItemStruct> for ModelDefinition {
     fn from(value: &ItemStruct) -> Self {
         let name = parse_model_name(&value);
-
         let ItemStruct { fields, .. } = value;
         ModelDefinition {
             name,
