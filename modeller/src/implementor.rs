@@ -2,7 +2,7 @@ use definitions::bincode::{self, config};
 use std::path::{Path, PathBuf};
 
 use crate::{
-    DB_URL_KEY, DEFAULT_DB, DEFAULT_MIG_DIR, MIG_DIR_KEY, MIG_TABLE_NAME,
+    DB_URL_KEY, DEFAULT_DB, DEFAULT_MIG_DIR, METADATA_FILENAME, MIG_DIR_KEY, MIG_TABLE_NAME,
     errors::{Error, OpResult},
     generate_migration_filename, open_file,
 };
@@ -30,6 +30,13 @@ impl<'a> Modeller<'a> {
         if !dir_exists {
             self.init().await?;
             self.run_first_migration().await?;
+        } else {
+            let metadata = self.load_metadata().await?;
+            let raw = self.raw;
+
+            if &metadata == raw {
+                println!("modeller: no changes detected!")
+            }
         }
 
         Ok(())
@@ -162,6 +169,16 @@ impl<'a> Modeller<'a> {
     }
 
     fn metadata_filename(&self) -> OpResult<String> {
-        self.build_mig_path("metadata")
+        self.build_mig_path(&METADATA_FILENAME)
+    }
+
+    async fn load_metadata(&self) -> OpResult<Vec<u8>> {
+        let mf = self.migrations_path().join(&METADATA_FILENAME);
+        if mf.exists() {
+            let metadata = tokio::fs::read(&mf).await?;
+            Ok(metadata)
+        } else {
+            Err(Error::InternalError("missing metadata file. you might need to delete your migrations folder or specify a different migration directory.".to_string()))
+        }
     }
 }

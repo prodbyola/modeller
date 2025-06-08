@@ -8,6 +8,7 @@ pub enum Error {
     IOError(io::Error),
     DBError(rbatis::Error),
     ParseError(String),
+    InternalError(String),
 }
 
 impl Display for Error {
@@ -18,7 +19,8 @@ impl Display for Error {
             VarError(err) => write!(f, "{err}"),
             IOError(err) => write!(f, "{err}"),
             DBError(err) => write!(f, "{err}"),
-            ParseError(err) => write!(f, "{err}"),
+            ParseError(msg) => write!(f, "{msg}"),
+            InternalError(msg) => write!(f, "{msg}"),
         }
     }
 }

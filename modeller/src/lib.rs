@@ -10,6 +10,7 @@ const MIG_DIR_KEY: &str = "MODELLER_MIGRATIONS_DIR";
 const DEFAULT_DB: &str = "sqlite://db.sqlite";
 const DEFAULT_MIG_DIR: &str = "migrations";
 const MIG_TABLE_NAME: &str = "mmm_migrations";
+const METADATA_FILENAME: &str = "metadata";
 
 fn generate_migration_filename() -> String {
     let now = Utc::now().format("%Y%m%d_%H%M%S").to_string();
