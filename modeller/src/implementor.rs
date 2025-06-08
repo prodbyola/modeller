@@ -1,9 +1,10 @@
 use definitions::bincode::{self, config};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::{
-    DB_URL_KEY, DEFAULT_DB, DEFAULT_MIG_DIR, MIG_DIR_KEY, MIG_TABLE_NAME, errors::OpResult,
-    generate_migration_filename, metadata_filename, open_file,
+    DB_URL_KEY, DEFAULT_DB, DEFAULT_MIG_DIR, MIG_DIR_KEY, MIG_TABLE_NAME,
+    errors::{Error, OpResult},
+    generate_migration_filename, open_file,
 };
 use definitions::{backend_type::BackendType, model::ModelDefinition};
 use rbatis::RBatis;
@@ -21,21 +22,6 @@ pub struct Modeller<'a> {
 }
 
 impl<'a> Modeller<'a> {
-    pub fn new(raw: &'a [u8]) -> Self {
-        let db_url = std::env::var(DB_URL_KEY).unwrap_or(DEFAULT_DB.to_string());
-        let migrations_dir = std::env::var(MIG_DIR_KEY).unwrap_or(DEFAULT_MIG_DIR.to_string());
-        let bt = db_url.as_str().into();
-        let db_pool = RBatis::new();
-
-        Self {
-            db_pool,
-            db_url,
-            migrations_dir,
-            bt,
-            raw,
-        }
-    }
-
     /// run Modeller instance
     pub async fn run(&self) -> OpResult<()> {
         let dir = Path::new(&self.migrations_dir);
@@ -80,9 +66,11 @@ impl<'a> Modeller<'a> {
     /// create migrations dir and all initial files. Caller
     /// should verify if migrations dir exists when required.
     async fn create_migrations_folder(&self) -> OpResult<()> {
-        let dir = Path::new(&self.migrations_dir);
-        tokio::fs::create_dir_all(dir).await?;
-        tokio::fs::File::create(&metadata_filename()).await?;
+        let mig_dir = self.migrations_path();
+        let mf = self.metadata_filename()?;
+
+        tokio::fs::create_dir_all(mig_dir).await?;
+        tokio::fs::File::create(&mf).await?;
 
         Ok(())
     }
@@ -108,19 +96,22 @@ impl<'a> Modeller<'a> {
             .map(|model| model.create_table_sql(&self.bt))
             .collect();
 
-        let mig_filename = generate_migration_filename(&self.migrations_dir);
-        let mig_content = create_sqls.join("\n\n");
-
         // create migration file
+        let mut mig_filename = generate_migration_filename();
+        mig_filename = self.build_mig_path(&mig_filename)?;
+
         let mut file = open_file(&mig_filename).await?;
-        file.write_all(mig_content.as_bytes()).await?;
+        let content = create_sqls.join("\n\n");
+
+        file.write_all(content.as_bytes()).await?;
 
         // write metadata
-        let mut file = open_file(&metadata_filename()).await?;
+        let mf = self.metadata_filename()?;
+        let mut file = open_file(&mf).await?;
         file.write_all(&self.raw).await?;
 
         // run the migration
-        self.db_pool.exec(&mig_content, vec![]).await?;
+        self.db_pool.exec(&content, vec![]).await?;
 
         // update migration status
         let insert_query =
@@ -138,5 +129,39 @@ impl<'a> Modeller<'a> {
             Ok((encoded, _)) => encoded,
             Err(_) => vec![],
         }
+    }
+
+    pub fn new(raw: &'a [u8]) -> Self {
+        let db_url = std::env::var(DB_URL_KEY).unwrap_or(DEFAULT_DB.to_string());
+        let migrations_dir = std::env::var(MIG_DIR_KEY).unwrap_or(DEFAULT_MIG_DIR.to_string());
+        let bt = db_url.as_str().into();
+        let db_pool = RBatis::new();
+
+        Self {
+            db_pool,
+            db_url,
+            migrations_dir,
+            bt,
+            raw,
+        }
+    }
+
+    fn migrations_path(&self) -> PathBuf {
+        let path = PathBuf::new();
+        path.join(&self.migrations_dir)
+    }
+
+    fn build_mig_path(&self, child_name: &str) -> OpResult<String> {
+        let path = self.migrations_path().join(child_name);
+
+        let path_str = path.to_str().ok_or(Error::ParseError(
+            "unable to parse migration file".to_string(),
+        ))?;
+
+        Ok(path_str.to_string())
+    }
+
+    fn metadata_filename(&self) -> OpResult<String> {
+        self.build_mig_path("metadata")
     }
 }

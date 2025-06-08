@@ -11,13 +11,9 @@ const DEFAULT_DB: &str = "sqlite://db.sqlite";
 const DEFAULT_MIG_DIR: &str = "migrations";
 const MIG_TABLE_NAME: &str = "mmm_migrations";
 
-fn metadata_filename() -> String {
-    format!("{DEFAULT_MIG_DIR}/metadata")
-}
-
-fn generate_migration_filename(mig_dir: &str) -> String {
-    let now = Utc::now().timestamp().to_string();
-    format!("{}/migration_{now}.sql", mig_dir)
+fn generate_migration_filename() -> String {
+    let now = Utc::now().format("%Y%m%d_%H%M%S").to_string();
+    format!("migration_{now}")
 }
 
 async fn open_file(path: &str) -> OpResult<tokio::fs::File> {
