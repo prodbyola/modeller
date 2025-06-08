@@ -1,4 +1,5 @@
 use definitions::bincode::{self, config};
+use rbs::Value;
 use std::path::{Path, PathBuf};
 
 use crate::{
@@ -24,12 +25,14 @@ pub struct Modeller<'a> {
 impl<'a> Modeller<'a> {
     /// run Modeller instance
     pub async fn run(&self) -> OpResult<()> {
+        self.connect().await?;
+
         let dir = Path::new(&self.migrations_dir);
         let dir_exists = dir.exists() && dir.is_dir();
 
         if !dir_exists {
             self.init().await?;
-            self.run_first_migration().await?;
+            self.write_first_migration().await?;
         } else {
             let metadata = self.load_metadata().await?;
             let raw = self.raw;
@@ -38,6 +41,9 @@ impl<'a> Modeller<'a> {
                 println!("modeller: no changes detected!")
             }
         }
+
+        self.run_pending_migrations().await?;
+        self.update_metadata().await?;
 
         Ok(())
     }
@@ -48,7 +54,6 @@ impl<'a> Modeller<'a> {
     /// - create "migrations" directory and metadata file if they don't exist.
     async fn init(&self) -> OpResult<()> {
         // perform init
-        self.connect().await?;
         self.create_migrations_table().await?;
         self.create_migrations_folder().await?;
 
@@ -61,8 +66,7 @@ impl<'a> Modeller<'a> {
             DROP TABLE IF EXISTS {MIG_TABLE_NAME};
 
             CREATE TABLE IF NOT EXISTS {MIG_TABLE_NAME} (
-                filename VARCHAR(200) NOT NULL UNIQUE,
-                run_status BOOLEAN DEFAULT false
+                filename VARCHAR(200) NOT NULL UNIQUE
             );"
         );
 
@@ -96,7 +100,7 @@ impl<'a> Modeller<'a> {
         Ok(())
     }
 
-    async fn run_first_migration(&self) -> OpResult<()> {
+    async fn write_first_migration(&self) -> OpResult<()> {
         let models = self.models();
         let create_sqls: Vec<String> = models
             .iter()
@@ -104,28 +108,13 @@ impl<'a> Modeller<'a> {
             .collect();
 
         // create migration file
-        let mut mig_filename = generate_migration_filename();
-        mig_filename = self.build_mig_path(&mig_filename)?;
+        let mut filename = generate_migration_filename();
+        filename = self.build_mig_path(&filename)?;
 
-        let mut file = open_file(&mig_filename).await?;
+        let mut file = open_file(&filename).await?;
         let content = create_sqls.join("\n\n");
 
         file.write_all(content.as_bytes()).await?;
-
-        // write metadata
-        let mf = self.metadata_filename()?;
-        let mut file = open_file(&mf).await?;
-        file.write_all(&self.raw).await?;
-
-        // run the migration
-        self.db_pool.exec(&content, vec![]).await?;
-
-        // update migration status
-        let insert_query =
-            format!("INSERT INTO {MIG_TABLE_NAME} (filename, run_status) VALUES(?, true)");
-        self.db_pool
-            .exec(&insert_query, vec![mig_filename.into()])
-            .await?;
 
         Ok(())
     }
@@ -180,5 +169,91 @@ impl<'a> Modeller<'a> {
         } else {
             Err(Error::InternalError("missing metadata file. you might need to delete your migrations folder or specify a different migration directory.".to_string()))
         }
+    }
+
+    /// get list previously ran migrations from database
+    async fn previous_migrations(&self) -> OpResult<Vec<String>> {
+        let done_migs = self
+            .db_pool
+            .query(&format!("SELECT filename from {MIG_TABLE_NAME}"), vec![])
+            .await?;
+
+        let results: Vec<String> = done_migs
+            .as_array()
+            .map(|rows| {
+                rows.iter()
+                    .map(|v| v.as_map().map(|m| m.get(&Value::from("filename")).into()))
+                    .flatten()
+                    .collect()
+            })
+            .unwrap_or(vec![]);
+
+        Ok(results)
+    }
+
+    /// get list of all migration files from migrations directory
+    async fn migration_files(&self) -> OpResult<Vec<PathBuf>> {
+        let dir = self.migrations_path();
+
+        let mut entries = tokio::fs::read_dir(&dir).await?;
+        let mut paths = Vec::new();
+
+        while let Some(entry) = entries.next_entry().await? {
+            paths.push(entry.path());
+        }
+
+        Ok(paths)
+    }
+
+    async fn run_pending_migrations(&self) -> OpResult<()> {
+        let pvs = self.previous_migrations().await?;
+        let mfs = self.migration_files().await?;
+        let metafile = self.metadata_filename()?;
+
+        let new_migrations: Vec<&PathBuf> = mfs
+            .iter()
+            .filter(|file| {
+                if let Some(filename) = file.to_str() {
+                    if filename == &metafile {
+                        return false;
+                    }
+
+                    let exists = pvs.iter().find(|pv| pv.as_str() == filename);
+                    return exists.is_none();
+                }
+
+                return true;
+            })
+            .collect();
+
+        if !new_migrations.is_empty() {
+            for mig in new_migrations {
+                let content = tokio::fs::read(mig).await?;
+                let sql = String::from_utf8(content).map_err(|err| {
+                    Error::InternalError(format!("error parsing migration content {mig:?}: {err}"))
+                })?;
+
+                // run the migration
+                self.db_pool.exec(&sql, vec![]).await?;
+
+                // update migration status
+                let filename = mig.to_str().unwrap_or("");
+                let insert_query = format!("INSERT INTO {MIG_TABLE_NAME} (filename) VALUES(?)");
+                self.db_pool
+                    .exec(&insert_query, vec![filename.into()])
+                    .await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn update_metadata(&self) -> OpResult<()> {
+        // write metadata
+        let mf = self.metadata_filename()?;
+        let mut file = open_file(&mf).await?;
+        file.write_all(&self.raw).await?;
+
+        Ok(())
     }
 }

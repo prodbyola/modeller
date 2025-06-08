@@ -14,7 +14,7 @@ const METADATA_FILENAME: &str = "metadata";
 
 fn generate_migration_filename() -> String {
     let now = Utc::now().format("%Y%m%d_%H%M%S").to_string();
-    format!("migration_{now}")
+    format!("migration_{now}.sql")
 }
 
 async fn open_file(path: &str) -> OpResult<tokio::fs::File> {
