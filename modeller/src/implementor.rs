@@ -32,12 +32,30 @@ impl<'a> Modeller<'a> {
 
         if !dir_exists {
             self.init().await?;
-            self.write_first_migration().await?;
+            self.init_query().await?;
         } else {
             let metadata = self.load_metadata().await?;
             let raw = self.raw;
 
-            if &metadata == raw {
+            if &metadata != raw {
+                let pm = decode_raw(&metadata)?; // previous models
+                let cm = decode_raw(raw)?; // current models
+
+                let mut queries = Vec::with_capacity(cm.len());
+                for model in cm {
+                    // check if model already exists
+                    let exists = pm.iter().find(|p| model.name() == p.name());
+                    match exists {
+                        Some(prev) => {
+                            // check if model is changed
+                        }
+                        None => {
+                            let q = model.create_table_sql(&self.bt);
+                            queries.push(q);
+                        }
+                    }
+                }
+            } else {
                 println!("modeller: no changes detected!")
             }
         }
@@ -49,7 +67,6 @@ impl<'a> Modeller<'a> {
     }
 
     /// initializes modeller.
-    /// - attempts to connect to the database
     /// - create database "migrations" table if it doesn't exist
     /// - create "migrations" directory and metadata file if they don't exist.
     async fn init(&self) -> OpResult<()> {
@@ -100,14 +117,20 @@ impl<'a> Modeller<'a> {
         Ok(())
     }
 
-    async fn write_first_migration(&self) -> OpResult<()> {
+    /// Generate initial query for all models. Initial query
+    /// is usually SQL CREATE statements for all available models.
+    ///
+    /// Once the query is generated, we write it to our first
+    /// migration file.
+    async fn init_query(&self) -> OpResult<()> {
+        // generate initial query for all models
         let models = self.models();
         let create_sqls: Vec<String> = models
             .iter()
             .map(|model| model.create_table_sql(&self.bt))
             .collect();
 
-        // create migration file
+        // wite the query to first migrations file
         let mut filename = generate_migration_filename();
         filename = self.build_mig_path(&filename)?;
 
@@ -256,4 +279,12 @@ impl<'a> Modeller<'a> {
 
         Ok(())
     }
+}
+
+fn decode_raw(raw: &[u8]) -> OpResult<Vec<ModelDefinition>> {
+    let config = config::standard();
+    let m: (Vec<ModelDefinition>, usize) = bincode::decode_from_slice(raw, config)
+        .map_err(|err| Error::InternalError(err.to_string()))?;
+
+    Ok(m.0)
 }

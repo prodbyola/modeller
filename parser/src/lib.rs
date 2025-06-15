@@ -1,78 +1,9 @@
 extern crate proc_macro;
 
+use parser::impl_parse_models;
 use proc_macro::TokenStream;
-use quote::quote;
-use syn::{Attribute, Field, Fields, Path, parse_macro_input};
 
-use definitions::core::DefinitionStream;
-
-fn impl_parse_models(stream: TokenStream) -> TokenStream {
-    let def_stream = parse_macro_input!(stream as DefinitionStream);
-    let items = def_stream.items();
-
-    let original_structs = items.into_iter().map(|item| {
-        let vis = &item.vis;
-        let attrs = &item.attrs;
-        let attrs: Vec<&Attribute> = attrs
-            .into_iter()
-            .filter(|attr| should_keep_attr(attr, "table_name"))
-            .collect();
-
-        let ident = &item.ident;
-        let generics = &item.generics;
-        let fields = match &item.fields {
-            Fields::Named(named) => {
-                let new_fields = named.named.iter().cloned().map(strip_field_attrs);
-                quote! {
-                    {
-                        #(#new_fields),*
-                    }
-                }
-            }
-            _ => quote! {},
-        };
-
-        quote! {
-            #(#attrs)*
-            #vis struct #ident #generics #fields
-        }
-    });
-
-    quote! {
-
-        #(#original_structs)*
-        #def_stream
-
-    }
-    .into()
-}
-
-/// Once sql_maker is done analyzing models and extracting sql,
-/// we remove all attributes defined for modeller.
-///
-///  This helper removes modeller attributes in order to avoid
-/// "attr not found" error.
-///
-/// We pass attribute instance and an `ident_key` str that
-/// reprensents the modeller attribute we'd link to remove
-fn should_keep_attr(attr: &Attribute, ident_key: &'static str) -> bool {
-    let Path { segments, .. } = attr.path();
-    if let Some(seg) = segments.first() {
-        let ident = seg.ident.to_string();
-        return ident != ident_key;
-    }
-
-    true
-}
-
-fn strip_field_attrs(mut field: Field) -> Field {
-    field.attrs = field
-        .attrs
-        .into_iter()
-        .filter(|attr| should_keep_attr(attr, "modeller"))
-        .collect();
-    field
-}
+mod parser;
 
 #[proc_macro]
 /// Parses Rust struct models into `ModelDefinitions` and

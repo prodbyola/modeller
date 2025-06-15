@@ -36,17 +36,6 @@ impl DefinitionStream {
     }
 }
 
-pub struct Definitions {
-    pub bt: BackendType,
-    pub models: Vec<ModelDefinition>,
-}
-
-impl Definitions {
-    pub fn bt(&self) -> &BackendType {
-        &self.bt
-    }
-}
-
 impl Parse for DefinitionStream {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         // load model definitions
@@ -75,5 +64,16 @@ impl ToTokens for DefinitionStream {
                 vec![#(#bytes),*]
             }
         });
+    }
+}
+
+pub struct Definitions {
+    pub bt: BackendType,
+    pub models: Vec<ModelDefinition>,
+}
+
+impl Definitions {
+    pub fn bt(&self) -> &BackendType {
+        &self.bt
     }
 }
