@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use bincode::{Decode, Encode};
 use quote::ToTokens;
 use syn::Type;
@@ -104,5 +106,11 @@ impl From<&Type> for ColumnType {
         } else {
             ColumnType::from_type_str(ty)
         }
+    }
+}
+
+impl Display for ColumnType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_str())
     }
 }
