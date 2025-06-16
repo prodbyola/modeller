@@ -1,44 +1,17 @@
-use std::fmt::Display;
-
 use crate::backend_type::BackendType;
 use crate::column::ColumnType;
 use bincode::{Decode, Encode};
-use modeller_hashify::IntoHashMap;
 use quote::ToTokens;
 use syn::{Field, Meta};
 
 #[derive(Debug, Default, Encode, Decode)]
-pub struct Optional<T>(Option<T>);
-impl<T: Display> Optional<T> {
-    pub fn opt(&self) -> &Option<T> {
-        &self.0
-    }
-
-    pub fn as_ref(&self) -> Option<&T> {
-        self.0.as_ref()
-    }
-}
-
-impl<T: Display> Display for Optional<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let opt = self.opt();
-        let value = opt
-            .as_ref()
-            .map(|v| v.to_string())
-            .unwrap_or("null".to_string());
-
-        write!(f, "{value}")
-    }
-}
-
-#[derive(Debug, Default, Encode, Decode, IntoHashMap)]
 pub struct FieldDefinition {
     col_name: String,
     col_type: ColumnType,
     serial: bool, // autoincrement field
     unique: bool,
-    default_value: Optional<String>,
-    length: Optional<usize>,
+    default_value: Option<String>,
+    length: Option<usize>,
 }
 
 impl FieldDefinition {
@@ -53,8 +26,7 @@ impl FieldDefinition {
                 Sqlite => format!("{col} INTEGER PRIMARY KEY AUTOINCREMENT"),
             }
         } else {
-            let length = &self.length.opt();
-            let col_type = &self.col_type.to_sql(length);
+            let col_type = &self.col_type.to_sql(&self.length);
             let unique = if self.unique { "UNIQUE" } else { "" };
             let default_value = &self
                 .default_value
@@ -126,8 +98,8 @@ impl From<&Field> for FieldDefinition {
             col_type,
             serial,
             unique,
-            default_value: Optional(default_value),
-            length: Optional(length),
+            default_value,
+            length,
         }
     }
 }

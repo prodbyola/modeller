@@ -235,7 +235,6 @@ name = "definitions"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "modeller_hashify",
  "proc-macro2",
  "quote",
  "syn",
@@ -827,15 +826,6 @@ dependencies = [
  "rbdc-sqlite",
  "rbs",
  "tokio",
-]
-
-[[package]]
-name = "modeller_hashify"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
