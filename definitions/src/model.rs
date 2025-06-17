@@ -18,7 +18,8 @@ impl ModelDefinition {
         &self.fields
     }
 
-    pub fn create_table_sql(&self, bt: &BackendType) -> String {
+    /// Generate `CREATE TABLE` sql query for the model.
+    pub fn sql_create_table(&self, bt: &BackendType) -> String {
         let table_name = &self.name;
         let field_sqls: Vec<String> = self
             .fields()
@@ -31,16 +32,48 @@ impl ModelDefinition {
             field_sqls.join(",\n\t")
         )
     }
-}
 
-// impl ToTokens for ModelDefinition {
-//     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-//         match &self.encode(encoder) {
-//             Ok(def) => tokens.extend(quote! {#def}),
-//             Err(err) => panic!("unable to strigify model definition: {err}"),
-//         }
-//     }
-// }
+    /// Generate `ALTER TABLE` queries if changes are detected
+    /// on a model.
+    ///
+    /// - If existing columns are modified, we generate a query to
+    /// remove the column and replace with the updated version
+    /// - If new columns were added, we generate a query to add a new
+    /// columns
+    pub fn sql_alter_table(&self, prev: &Self, bt: &BackendType) -> Option<String> {
+        let table_name = self.name();
+        let new_fields = self.fields();
+        let prev_fields = prev.fields();
+
+        let mut queries = Vec::with_capacity(new_fields.len());
+
+        for nf in new_fields {
+            let exists = prev_fields.iter().find(|pf| nf.col_name() == pf.col_name());
+
+            match exists {
+                Some(exist) => {
+                    if exist != nf {
+                        queries.push(format!("ALTER TABLE DROP COLUMN {};", exist.col_name()));
+                        queries.push(format!(
+                            "ALTER TABLE {table_name} ADD COLUMN {};",
+                            nf.to_sql(bt)
+                        ));
+                    }
+                }
+                None => {
+                    let q = format!("ALTER TABLE {table_name} ADD COLUMN {};", nf.to_sql(bt));
+                    queries.push(q);
+                }
+            };
+        }
+
+        if queries.is_empty() {
+            None
+        } else {
+            Some(queries.join("\n"))
+        }
+    }
+}
 
 impl From<&ItemStruct> for ModelDefinition {
     fn from(value: &ItemStruct) -> Self {

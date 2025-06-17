@@ -34,30 +34,7 @@ impl<'a> Modeller<'a> {
             self.init().await?;
             self.init_query().await?;
         } else {
-            let metadata = self.load_metadata().await?;
-            let raw = self.raw;
-
-            if &metadata != raw {
-                let pm = decode_raw(&metadata)?; // previous models
-                let cm = decode_raw(raw)?; // current models
-
-                let mut queries = Vec::with_capacity(cm.len());
-                for model in cm {
-                    // check if model already exists
-                    let exists = pm.iter().find(|p| model.name() == p.name());
-                    match exists {
-                        Some(prev) => {
-                            // check if model is changed
-                        }
-                        None => {
-                            let q = model.create_table_sql(&self.bt);
-                            queries.push(q);
-                        }
-                    }
-                }
-            } else {
-                println!("modeller: no changes detected!")
-            }
+            self.generate_migrations().await?;
         }
 
         self.run_pending_migrations().await?;
@@ -127,12 +104,12 @@ impl<'a> Modeller<'a> {
         let models = self.models();
         let create_sqls: Vec<String> = models
             .iter()
-            .map(|model| model.create_table_sql(&self.bt))
+            .map(|model| model.sql_create_table(&self.bt))
             .collect();
 
         // wite the query to first migrations file
         let mut filename = generate_migration_filename();
-        filename = self.build_mig_path(&filename)?;
+        filename = self.build_migration_path(&filename)?;
 
         let mut file = open_file(&filename).await?;
         let content = create_sqls.join("\n\n");
@@ -170,7 +147,7 @@ impl<'a> Modeller<'a> {
         path.join(&self.migrations_dir)
     }
 
-    fn build_mig_path(&self, child_name: &str) -> OpResult<String> {
+    fn build_migration_path(&self, child_name: &str) -> OpResult<String> {
         let path = self.migrations_path().join(child_name);
 
         let path_str = path.to_str().ok_or(Error::ParseError(
@@ -181,7 +158,7 @@ impl<'a> Modeller<'a> {
     }
 
     fn metadata_filename(&self) -> OpResult<String> {
-        self.build_mig_path(&METADATA_FILENAME)
+        self.build_migration_path(&METADATA_FILENAME)
     }
 
     async fn load_metadata(&self) -> OpResult<Vec<u8>> {
@@ -276,6 +253,49 @@ impl<'a> Modeller<'a> {
         let mf = self.metadata_filename()?;
         let mut file = open_file(&mf).await?;
         file.write_all(&self.raw).await?;
+
+        Ok(())
+    }
+
+    async fn generate_migrations(&self) -> OpResult<()> {
+        let metadata = self.load_metadata().await?;
+        let raw = self.raw;
+
+        if &metadata != raw {
+            let pm = decode_raw(&metadata)?; // previous models
+            let cm = decode_raw(raw)?; // current models
+
+            let mut queries = Vec::with_capacity(cm.len());
+            let bt = &self.bt;
+
+            for model in cm {
+                // check if model already exists
+                let exists = pm.iter().find(|p| model.name() == p.name());
+                match exists {
+                    Some(prev) => {
+                        if let Some(q) = model.sql_alter_table(prev, bt) {
+                            queries.push(q);
+                        }
+                    }
+                    None => {
+                        let q = model.sql_create_table(bt);
+                        queries.push(q);
+                    }
+                }
+            }
+            if !queries.is_empty() {
+                // wite query to migration file
+                let mut filename = generate_migration_filename();
+                filename = self.build_migration_path(&filename)?;
+
+                let mut file = open_file(&filename).await?;
+                let content = queries.join("\n\n");
+
+                file.write_all(content.as_bytes()).await?;
+            }
+        } else {
+            println!("modeller: no changes detected!")
+        }
 
         Ok(())
     }

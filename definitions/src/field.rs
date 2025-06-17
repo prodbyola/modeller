@@ -1,6 +1,6 @@
 use crate::backend_type::BackendType;
 use crate::column::ColumnType;
-use bincode::{Decode, Encode};
+use bincode::{Decode, Encode, config};
 use quote::ToTokens;
 use syn::{Field, Meta};
 
@@ -35,6 +35,10 @@ impl FieldDefinition {
                 .unwrap_or(String::new());
             format!("{col} {col_type} {unique} {default_value}")
         }
+    }
+
+    pub fn col_name(&self) -> &str {
+        &self.col_name
     }
 }
 
@@ -100,6 +104,20 @@ impl From<&Field> for FieldDefinition {
             unique,
             default_value,
             length,
+        }
+    }
+}
+
+impl PartialEq for FieldDefinition {
+    fn eq(&self, other: &Self) -> bool {
+        let config = config::standard();
+        let s = bincode::encode_to_vec(&self, config);
+        let o = bincode::encode_to_vec(other, config);
+
+        if let (Ok(s), Ok(o)) = (s, o) {
+            s == o
+        } else {
+            false
         }
     }
 }
