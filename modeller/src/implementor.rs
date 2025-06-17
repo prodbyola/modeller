@@ -18,7 +18,6 @@ pub struct Modeller {
     bt: BackendType,
     db_url: String,
     db_pool: RBatis,
-    // raw: &'a [u8],
 }
 
 impl Modeller {
