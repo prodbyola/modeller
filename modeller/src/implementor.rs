@@ -257,6 +257,7 @@ impl<'a> Modeller<'a> {
         Ok(())
     }
 
+    /// Generate migration for changed models if any.
     async fn generate_migrations(&self) -> OpResult<()> {
         let metadata = self.load_metadata().await?;
         let raw = self.raw;

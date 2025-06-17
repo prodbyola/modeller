@@ -1,5 +1,5 @@
 # How MODELLER works
-This flow is subjected to future changes depending benchmarks and performance.
+This flow is subjected to future changes depending on benchmarks and performance.
 
 ### Model Parsing and Modeller Initialization
 - `modeller::define_model!` macro accepts struct definitions as arguments.

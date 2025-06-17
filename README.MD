@@ -48,4 +48,4 @@ impl TestModel{}
 impl AnotherModel{}
 ```
 
-Please see flow description for [how it works](#FLOW.MD).
+Please see flow description for [how it works](https://github.com/prodbyola/modeller/blob/main/FLOW.MD).
