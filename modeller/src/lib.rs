@@ -1,6 +1,7 @@
 use chrono::Utc;
 
 use crate::errors::OpResult;
+pub use modeller_parser;
 
 pub mod errors;
 pub mod implementor;
@@ -41,7 +42,7 @@ macro_rules! define_models {
         ),*
     ) => {
         use modeller_parser::parse_models;
-        use crate::implementor::Modeller;
+        use $crate::implementor::Modeller;
 
         // parse the input models into a vector of strigified
         // `ModelDefinition`

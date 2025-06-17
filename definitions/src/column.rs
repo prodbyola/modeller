@@ -15,6 +15,7 @@ pub(super) enum ColumnType {
     VarChar,
     Datetime,
     Nullable(Box<ColumnType>),
+    Bool,
 }
 
 impl ColumnType {
@@ -46,6 +47,7 @@ impl ColumnType {
             VarChar => "VARCHAR",
             Datetime => "TIMESTAMP",
             Nullable(inner) => inner.to_str(),
+            Bool => "BOOL",
         }
     }
 
@@ -60,6 +62,7 @@ impl ColumnType {
             "String" | "str" => VarChar,
             "Text" => Text,
             "Timestamp" | "Datetime" => Datetime,
+            "bool" => Bool,
             _ => panic!("ColumnDefinition not implemented for {ty}"),
         }
     }
@@ -86,6 +89,7 @@ impl<'a> From<&'a str> for ColumnType {
                 "VARCHAR" => VarChar,
                 "TEXT" => Text,
                 "DATETIME" => Datetime,
+                "BOOL" => Bool,
                 _ => panic!("ColumnDefinition not implemented for {ty}"),
             }
         }
