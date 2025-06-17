@@ -1,6 +1,6 @@
 use definitions::bincode::{self, config};
 use rbs::Value;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::{
     DB_URL_KEY, DEFAULT_DB, DEFAULT_MIG_DIR, METADATA_FILENAME, MIG_DIR_KEY, MIG_TABLE_NAME,
@@ -18,7 +18,6 @@ pub struct Modeller<'a> {
     bt: BackendType,
     db_url: String,
     db_pool: RBatis,
-    migrations_dir: String,
     raw: &'a [u8],
 }
 
@@ -27,10 +26,8 @@ impl<'a> Modeller<'a> {
     pub async fn run(&self) -> OpResult<()> {
         self.connect().await?;
 
-        let dir = Path::new(&self.migrations_dir);
-        let dir_exists = dir.exists() && dir.is_dir();
-
-        if !dir_exists {
+        let mf = self.metadata_filename();
+        if !mf.is_file() {
             self.init().await?;
             self.init_query().await?;
         } else {
@@ -45,11 +42,11 @@ impl<'a> Modeller<'a> {
 
     /// initializes modeller.
     /// - create database "migrations" table if it doesn't exist
-    /// - create "migrations" directory and metadata file if they don't exist.
+    /// - create metadata file.
     async fn init(&self) -> OpResult<()> {
         // perform init
         self.create_migrations_table().await?;
-        self.create_migrations_folder().await?;
+        self.creation_metadata_file().await?;
 
         Ok(())
     }
@@ -68,13 +65,9 @@ impl<'a> Modeller<'a> {
         Ok(())
     }
 
-    /// create migrations dir and all initial files. Caller
-    /// should verify if migrations dir exists when required.
-    async fn create_migrations_folder(&self) -> OpResult<()> {
-        let mig_dir = self.migrations_path();
-        let mf = self.metadata_filename()?;
-
-        tokio::fs::create_dir_all(mig_dir).await?;
+    /// create metadata file.
+    async fn creation_metadata_file(&self) -> OpResult<()> {
+        let mf = self.metadata_filename();
         tokio::fs::File::create(&mf).await?;
 
         Ok(())
@@ -108,10 +101,10 @@ impl<'a> Modeller<'a> {
             .collect();
 
         // wite the query to first migrations file
-        let mut filename = generate_migration_filename();
-        filename = self.build_migration_path(&filename)?;
+        let filename = generate_migration_filename();
+        let path = self.build_migration_path(&filename)?;
 
-        let mut file = open_file(&filename).await?;
+        let mut file = open_file(&path).await?;
         let content = create_sqls.join("\n\n");
 
         file.write_all(content.as_bytes()).await?;
@@ -129,40 +122,34 @@ impl<'a> Modeller<'a> {
 
     pub fn new(raw: &'a [u8]) -> Self {
         let db_url = std::env::var(DB_URL_KEY).unwrap_or(DEFAULT_DB.to_string());
-        let migrations_dir = std::env::var(MIG_DIR_KEY).unwrap_or(DEFAULT_MIG_DIR.to_string());
         let bt = db_url.as_str().into();
         let db_pool = RBatis::new();
 
         Self {
             db_pool,
             db_url,
-            migrations_dir,
             bt,
             raw,
         }
     }
 
-    fn migrations_path(&self) -> PathBuf {
-        let path = PathBuf::new();
-        path.join(&self.migrations_dir)
-    }
-
-    fn build_migration_path(&self, child_name: &str) -> OpResult<String> {
-        let path = self.migrations_path().join(child_name);
+    fn build_migration_path(&self, child_name: &str) -> OpResult<PathBuf> {
+        let path = migrations_dir().join(child_name);
 
         let path_str = path.to_str().ok_or(Error::ParseError(
             "unable to parse migration file".to_string(),
         ))?;
 
-        Ok(path_str.to_string())
+        Ok(PathBuf::new().join(path_str))
     }
 
-    fn metadata_filename(&self) -> OpResult<String> {
-        self.build_migration_path(&METADATA_FILENAME)
+    fn metadata_filename(&self) -> PathBuf {
+        let md = migrations_dir();
+        md.join(METADATA_FILENAME)
     }
 
     async fn load_metadata(&self) -> OpResult<Vec<u8>> {
-        let mf = self.migrations_path().join(&METADATA_FILENAME);
+        let mf = self.metadata_filename();
         if mf.exists() {
             let metadata = tokio::fs::read(&mf).await?;
             Ok(metadata)
@@ -193,7 +180,7 @@ impl<'a> Modeller<'a> {
 
     /// get list of all migration files from migrations directory
     async fn migration_files(&self) -> OpResult<Vec<PathBuf>> {
-        let dir = self.migrations_path();
+        let dir = migrations_dir();
 
         let mut entries = tokio::fs::read_dir(&dir).await?;
         let mut paths = Vec::new();
@@ -208,21 +195,22 @@ impl<'a> Modeller<'a> {
     async fn run_pending_migrations(&self) -> OpResult<()> {
         let pvs = self.previous_migrations().await?;
         let mfs = self.migration_files().await?;
-        let metafile = self.metadata_filename()?;
+        let metafile = self.metadata_filename();
 
         let new_migrations: Vec<&PathBuf> = mfs
             .iter()
-            .filter(|file| {
-                if let Some(filename) = file.to_str() {
-                    if filename == &metafile {
-                        return false;
-                    }
-
-                    let exists = pvs.iter().find(|pv| pv.as_str() == filename);
-                    return exists.is_none();
+            .filter(|filepath| {
+                if filepath == &&metafile {
+                    return false;
                 }
 
-                return true;
+                let exists = pvs.iter().find(|pv| {
+                    filepath
+                        .to_str()
+                        .map(|path| path == pv.as_str())
+                        .unwrap_or_default()
+                });
+                exists.is_none()
             })
             .collect();
 
@@ -250,7 +238,7 @@ impl<'a> Modeller<'a> {
 
     async fn update_metadata(&self) -> OpResult<()> {
         // write metadata
-        let mf = self.metadata_filename()?;
+        let mf = self.metadata_filename();
         let mut file = open_file(&mf).await?;
         file.write_all(&self.raw).await?;
 
@@ -286,10 +274,10 @@ impl<'a> Modeller<'a> {
             }
             if !queries.is_empty() {
                 // wite query to migration file
-                let mut filename = generate_migration_filename();
-                filename = self.build_migration_path(&filename)?;
+                let filename = generate_migration_filename();
+                let file = self.build_migration_path(&filename)?;
 
-                let mut file = open_file(&filename).await?;
+                let mut file = open_file(&file).await?;
                 let content = queries.join("\n\n");
 
                 file.write_all(content.as_bytes()).await?;
@@ -300,6 +288,50 @@ impl<'a> Modeller<'a> {
 
         Ok(())
     }
+
+    /// Write generated metadata streams to metadata file
+    pub async fn write_stream(stream: &mut Vec<u8>) -> OpResult<()> {
+        let mp = migrations_dir();
+        let mf = mp.join("stream");
+
+        if !mp.is_dir() {
+            tokio::fs::create_dir_all(mp).await?;
+        }
+
+        let mut file = tokio::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&mf)
+            .await?;
+
+        let mut fc = tokio::fs::read(mf).await?;
+
+        let content = if !fc.is_empty() {
+            fc.append(stream);
+            &fc
+        } else {
+            stream
+        };
+
+        file.write(&content).await?;
+
+        Ok(())
+    }
+
+    async fn load_stream() -> OpResult<Vec<u8>> {
+        let mp = migrations_dir();
+        let mf = mp.join("stream");
+
+        let content = tokio::fs::read(&mf).await?;
+
+        Ok(content)
+    }
+}
+
+fn migrations_dir() -> PathBuf {
+    let dir = std::env::var(MIG_DIR_KEY).unwrap_or(DEFAULT_MIG_DIR.to_string());
+    let p = PathBuf::new();
+    p.join(&dir)
 }
 
 fn decode_raw(raw: &[u8]) -> OpResult<Vec<ModelDefinition>> {

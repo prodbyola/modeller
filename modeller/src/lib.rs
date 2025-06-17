@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use chrono::Utc;
 
 use crate::errors::OpResult;
@@ -18,11 +20,11 @@ fn generate_migration_filename() -> String {
     format!("migration_{now}.sql")
 }
 
-async fn open_file(path: &str) -> OpResult<tokio::fs::File> {
+async fn open_file(path: &PathBuf) -> OpResult<tokio::fs::File> {
     let f = tokio::fs::OpenOptions::new()
         .write(true)
         .create(true)
-        .open(&path)
+        .open(path)
         .await?;
 
     Ok(f)
@@ -58,8 +60,9 @@ macro_rules! define_models {
             ),*,
         }
 
-        pub fn get_modeller(models: &[u8]) -> Modeller {
-            Modeller::new(models)
+        pub async fn write_stream(stream: &mut Vec<u8>) -> OpResult<()> {
+            Modeller::write_stream(stream).await?;
+            Ok(())
         }
     };
 }
@@ -97,10 +100,10 @@ mod tests {
             }
         }
 
-        let streams = modeller_definition_streams();
-        let modeller = get_modeller(&streams);
+        let mut streams = modeller_definition_streams();
+        write_stream(&mut streams).await?;
 
-        modeller.run().await?;
+        // modeller.run().await?;
 
         Ok(())
     }
