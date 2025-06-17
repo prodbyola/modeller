@@ -84,7 +84,7 @@ impl ModelDefinition {
             // recreate table
             let field_sqls = self.field_sqls(bt);
             let create_table = format!(
-                "CREATE TABLE {table_name} (\n\t{});\n",
+                "CREATE TABLE {table_name} (\n\t{}\n);\n",
                 field_sqls.join(",\n\t")
             );
             query.push_str(&create_table);
