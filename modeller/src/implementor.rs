@@ -14,28 +14,31 @@ use rbdc_pg::PgDriver;
 use rbdc_sqlite::SqliteDriver;
 use tokio::io::AsyncWriteExt;
 
-pub struct Modeller<'a> {
+pub struct Modeller {
     bt: BackendType,
     db_url: String,
     db_pool: RBatis,
-    raw: &'a [u8],
+    // raw: &'a [u8],
 }
 
-impl<'a> Modeller<'a> {
+impl Modeller {
     /// run Modeller instance
     pub async fn run(&self) -> OpResult<()> {
         self.connect().await?;
 
+        let stream = Self::load_stream().await?;
+        let metadata = self.load_metadata().await?;
+
         let mf = self.metadata_filename();
         if !mf.is_file() {
             self.init().await?;
-            self.init_query().await?;
+            self.init_query(&metadata).await?;
         } else {
-            self.generate_migrations().await?;
+            self.generate_migrations(&stream).await?;
         }
 
         self.run_pending_migrations().await?;
-        self.update_metadata().await?;
+        self.update_metadata(&stream).await?;
 
         Ok(())
     }
@@ -92,9 +95,9 @@ impl<'a> Modeller<'a> {
     ///
     /// Once the query is generated, we write it to our first
     /// migration file.
-    async fn init_query(&self) -> OpResult<()> {
+    async fn init_query(&self, metadata: &[u8]) -> OpResult<()> {
         // generate initial query for all models
-        let models = self.models();
+        let models = decode_raw(metadata)?;
         let create_sqls: Vec<String> = models
             .iter()
             .map(|model| model.sql_create_table(&self.bt))
@@ -112,15 +115,7 @@ impl<'a> Modeller<'a> {
         Ok(())
     }
 
-    fn models(&self) -> Vec<ModelDefinition> {
-        let config = config::standard();
-        match bincode::decode_from_slice(&self.raw, config) {
-            Ok((encoded, _)) => encoded,
-            Err(_) => vec![],
-        }
-    }
-
-    pub fn new(raw: &'a [u8]) -> Self {
+    pub fn new() -> Self {
         let db_url = std::env::var(DB_URL_KEY).unwrap_or(DEFAULT_DB.to_string());
         let bt = db_url.as_str().into();
         let db_pool = RBatis::new();
@@ -129,7 +124,6 @@ impl<'a> Modeller<'a> {
             db_pool,
             db_url,
             bt,
-            raw,
         }
     }
 
@@ -236,23 +230,23 @@ impl<'a> Modeller<'a> {
         Ok(())
     }
 
-    async fn update_metadata(&self) -> OpResult<()> {
+    async fn update_metadata(&self, stream: &[u8]) -> OpResult<()> {
         // write metadata
         let mf = self.metadata_filename();
         let mut file = open_file(&mf).await?;
-        file.write_all(&self.raw).await?;
+        file.write_all(stream).await?;
 
         Ok(())
     }
 
     /// Generate migration for changed models if any.
-    async fn generate_migrations(&self) -> OpResult<()> {
+    async fn generate_migrations(&self, stream: &[u8]) -> OpResult<()> {
         let metadata = self.load_metadata().await?;
-        let raw = self.raw;
+        // let raw = self.raw;
 
-        if &metadata != raw {
+        if &metadata != stream {
             let pm = decode_raw(&metadata)?; // previous models
-            let cm = decode_raw(raw)?; // current models
+            let cm = decode_raw(stream)?; // current models
 
             let mut queries = Vec::with_capacity(cm.len());
             let bt = &self.bt;
