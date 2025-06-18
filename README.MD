@@ -28,6 +28,13 @@ define_models! {
     },
 }
 
+// write streams for each model
+TestModel::write_stream().await?;
+AnotherModel::write_stream().await?;
+
+// in your main, lib or mod
+run_modeller().await?;
+
 // result migration query for creating tables:
 // CREATE TABLE test_model (
 // 	id BIGINT NOT NULL,
@@ -42,10 +49,6 @@ define_models! {
 // 	bio TEXT
 // );
 
-// You can still access your models anywhere depending
-// on visibility
-impl TestModel{}
-impl AnotherModel{}
 ```
 
 Please see flow description for [how it works](https://github.com/prodbyola/modeller/blob/main/FLOW.MD).

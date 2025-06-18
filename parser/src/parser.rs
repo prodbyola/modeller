@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{Attribute, Field, Fields, Path, parse_macro_input};
@@ -6,7 +8,9 @@ use definitions::core::DefinitionStream;
 
 pub fn impl_parse_models(stream: TokenStream) -> TokenStream {
     let def_stream = parse_macro_input!(stream as DefinitionStream);
+
     let items = def_stream.items();
+    let mut raws = def_stream.raws().ok().unwrap_or(VecDeque::new());
 
     let original_structs = items.into_iter().map(|item| {
         let vis = &item.vis;
@@ -30,16 +34,29 @@ pub fn impl_parse_models(stream: TokenStream) -> TokenStream {
             _ => quote! {},
         };
 
-        quote! {
+        let mut output = quote! {
             #(#attrs)*
             #vis struct #ident #generics #fields
+        };
+
+        if let Some(raw) = raws.pop_front() {
+            output.extend(quote! {
+                impl #ident {
+                    fn get_stream() -> Vec<u8> {
+                        vec![#(#raw),*]
+                    }
+                }
+            });
         }
+
+        output
     });
 
-    quote! {
+    // let raws = def_stream.raws().ok().unwrap_or(vec![]);
+    // let idents: Vec<Ident> = items.iter().map(|item| item.ident.clone()).collect();
 
+    quote! {
         #(#original_structs)*
-        #def_stream
 
     }
     .into()

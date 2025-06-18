@@ -16,6 +16,7 @@ const DEFAULT_DB: &str = "sqlite://db.sqlite";
 const DEFAULT_MIG_DIR: &str = "migrations";
 const MIG_TABLE_NAME: &str = "mmm_migrations";
 const METADATA_FILENAME: &str = "metadata";
+const RAW_TERMINATOR: u8 = 0x70;
 
 fn generate_migration_filename() -> String {
     let now = Utc::now().format("%Y%m%d_%H%M%S").to_string();
@@ -63,10 +64,16 @@ macro_rules! define_models {
             ),*,
         }
 
-        pub async fn write_stream(stream: &mut Vec<u8>) -> Result<(), Error> {
-            Modeller::write_stream(stream).await?;
-            Ok(())
-        }
+        $(
+            impl $name {
+                pub async fn write_stream() -> Result<(), Error> {
+                    let mut stream = Self::get_stream();
+                    Modeller::write_stream(&mut stream).await?;
+
+                    Ok(())
+                }
+            }
+        )*
     };
 }
 
@@ -81,13 +88,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_modeller() -> OpResult<()> {
+        // define one or more models in a specific module.
         define_models! {
             struct TestModel {
                 id: u64,
                 country: Option<String>,
 
                 #[modeller(name=user_location, default=Lagos, unique)]
-                state: String,
+                state: u32,
 
                 // #[modeller(default=CURRENT_TIMESTAMP)]
                 // created_at: Datetime
@@ -108,8 +116,9 @@ mod tests {
             }
         }
 
-        let mut streams = modeller_definition_streams();
-        write_stream(&mut streams).await?;
+        // write streams for each model
+        TestModel::write_stream().await?;
+        AnotherModel::write_stream().await?;
 
         // in your main, lib or mod
         run_modeller().await?;

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crate::{
     DB_URL_KEY, DEFAULT_DB, DEFAULT_MIG_DIR, METADATA_FILENAME, MIG_DIR_KEY, MIG_TABLE_NAME,
-    OpResult, errors::Error, generate_migration_filename, open_file,
+    OpResult, RAW_TERMINATOR, errors::Error, generate_migration_filename, open_file,
 };
 use definitions::{backend_type::BackendType, model::ModelDefinition};
 use rbatis::RBatis;
@@ -96,9 +96,9 @@ impl Modeller {
     ///
     /// Once the query is generated, we write it to our first
     /// migration file.
-    async fn init_query(&self, metadata: &[u8]) -> OpResult<()> {
+    async fn init_query(&self, stream: &[u8]) -> OpResult<()> {
         // generate initial query for all models
-        let models = decode_raw(metadata)?;
+        let models = decode_raw(stream)?;
         let create_sqls: Vec<String> = models
             .iter()
             .map(|model| model.sql_create_table(&self.bt))
@@ -277,11 +277,11 @@ impl Modeller {
 
     /// Write generated metadata streams to metadata file
     pub async fn write_stream(stream: &mut Vec<u8>) -> OpResult<()> {
-        let mp = migrations_dir();
-        let mf = mp.join("stream");
+        let md = migrations_dir();
+        let mf = md.join("stream");
 
-        if !mp.is_dir() {
-            tokio::fs::create_dir_all(mp).await?;
+        if !md.is_dir() {
+            tokio::fs::create_dir_all(md).await?;
         }
 
         let mut file = tokio::fs::OpenOptions::new()
@@ -291,8 +291,8 @@ impl Modeller {
             .await?;
 
         let mut fc = tokio::fs::read(mf).await?;
-
         let content = if !fc.is_empty() {
+            fc.push(RAW_TERMINATOR);
             fc.append(stream);
             &fc
         } else {
@@ -330,8 +330,28 @@ fn migrations_dir() -> PathBuf {
 
 fn decode_raw(raw: &[u8]) -> OpResult<Vec<ModelDefinition>> {
     let config = config::standard();
-    let m: (Vec<ModelDefinition>, usize) = bincode::decode_from_slice(raw, config)
-        .map_err(|err| Error::InternalError(err.to_string()))?;
+    let mut results = Vec::new();
+    let mut split_start = 0;
 
-    Ok(m.0)
+    for (idx, byte) in raw.iter().enumerate() {
+        if byte == &RAW_TERMINATOR {
+            let model_data = &raw[split_start..idx];
+            let dd = bincode::decode_from_slice(model_data, config)
+                .map_err(|err| Error::InternalError(err.to_string()))?;
+
+            results.push(dd.0);
+            split_start += idx + 1;
+            continue;
+        }
+
+        if idx == raw.len() - 1 {
+            let model_data = &raw[split_start..idx + 1];
+            let dd = bincode::decode_from_slice(model_data, config)
+                .map_err(|err| Error::InternalError(err.to_string()))?;
+
+            results.push(dd.0);
+        }
+    }
+
+    Ok(results)
 }

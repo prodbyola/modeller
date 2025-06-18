@@ -1,5 +1,7 @@
+use std::collections::VecDeque;
+
 use bincode::config;
-use quote::{ToTokens, quote};
+// use quote::{ToTokens, quote};
 use syn::{ItemStruct, Token, parse::Parse};
 
 use crate::{backend_type::BackendType, model::ModelDefinition};
@@ -13,26 +15,17 @@ impl DefinitionStream {
         &self.items
     }
 
-    pub fn raw(&self) -> Result<Vec<u8>, String> {
+    pub fn raws(&self) -> Result<VecDeque<Vec<u8>>, String> {
         let config = config::standard();
-        let mut defs: Vec<ModelDefinition> = Vec::new();
+        let mut raws = VecDeque::new();
 
         for item in &self.items {
             let def = ModelDefinition::from(item);
-            let name_exists = defs.iter().find(|d| d.name() == def.name());
-
-            if name_exists.is_some() {
-                return Err(format!(
-                    "duplicate table name \"{}\". tables cannot have duplicate names.",
-                    def.name()
-                ));
-            }
-
-            defs.push(def);
+            let raw = bincode::encode_to_vec(&def, config).map_err(|err| err.to_string())?;
+            raws.push_back(raw);
         }
 
-        let raw = bincode::encode_to_vec(&defs, config).map_err(|err| err.to_string())?;
-        Ok(raw)
+        Ok(raws)
     }
 }
 
@@ -52,20 +45,20 @@ impl Parse for DefinitionStream {
     }
 }
 
-impl ToTokens for DefinitionStream {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        let bytes = match self.raw() {
-            Ok(raw) => raw,
-            Err(err) => panic!("{}", err),
-        };
+// impl ToTokens for DefinitionStream {
+//     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+//         let bytes = match self.raw() {
+//             Ok(raw) => raw,
+//             Err(err) => panic!("{}", err),
+//         };
 
-        tokens.extend(quote! {
-            pub fn modeller_definition_streams() -> Vec<u8> {
-                vec![#(#bytes),*]
-            }
-        });
-    }
-}
+//         tokens.extend(quote! {
+//             pub fn modeller_definition_streams() -> Vec<u8> {
+//                 vec![#(#bytes),*]
+//             }
+//         });
+//     }
+// }
 
 pub struct Definitions {
     pub bt: BackendType,
