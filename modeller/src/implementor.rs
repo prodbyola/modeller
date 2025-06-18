@@ -25,19 +25,29 @@ impl Modeller {
     pub async fn run(&self) -> OpResult<()> {
         self.connect().await?;
 
+        let mf = self.metadata_filename();
+
+        if !mf.is_file() {
+            self.init().await?;
+        }
+
         let stream = Self::load_stream().await?;
         let metadata = self.load_metadata().await?;
 
-        let mf = self.metadata_filename();
-        if !mf.is_file() {
-            self.init().await?;
-            self.init_query(&metadata).await?;
+        if metadata.is_empty() {
+            self.init_query(&stream).await?;
         } else {
-            self.generate_migrations(&stream).await?;
+            if metadata != stream {
+                self.generate_migrations(&stream, &metadata).await?;
+            } else {
+                println!("modeller: no model changes detected.")
+            }
         }
 
         self.run_pending_migrations().await?;
         self.update_metadata(&stream).await?;
+
+        Self::remove_stream().await?;
 
         Ok(())
     }
@@ -104,7 +114,7 @@ impl Modeller {
 
         // wite the query to first migrations file
         let filename = generate_migration_filename();
-        let path = self.build_migration_path(&filename)?;
+        let path = self.get_migration_child(&filename);
 
         let mut file = open_file(&path).await?;
         let content = create_sqls.join("\n\n");
@@ -126,14 +136,9 @@ impl Modeller {
         }
     }
 
-    fn build_migration_path(&self, child_name: &str) -> OpResult<PathBuf> {
-        let path = migrations_dir().join(child_name);
-
-        let path_str = path.to_str().ok_or(Error::ParseError(
-            "unable to parse migration file".to_string(),
-        ))?;
-
-        Ok(PathBuf::new().join(path_str))
+    /// Get the name of a file or folder within migrations folder
+    fn get_migration_child(&self, child_name: &str) -> PathBuf {
+        migrations_dir().join(child_name)
     }
 
     fn metadata_filename(&self) -> PathBuf {
@@ -188,12 +193,15 @@ impl Modeller {
     async fn run_pending_migrations(&self) -> OpResult<()> {
         let pvs = self.previous_migrations().await?;
         let mfs = self.migration_files().await?;
+
         let metafile = self.metadata_filename();
+        let streamfile = self.get_migration_child("stream");
 
         let new_migrations: Vec<&PathBuf> = mfs
             .iter()
             .filter(|filepath| {
-                if filepath == &&metafile {
+                // exclude other files
+                if [&metafile, &streamfile].contains(filepath) {
                     return false;
                 }
 
@@ -209,12 +217,12 @@ impl Modeller {
 
         if !new_migrations.is_empty() {
             for mig in new_migrations {
+                // run the migration
                 let content = tokio::fs::read(mig).await?;
                 let sql = String::from_utf8(content).map_err(|err| {
                     Error::InternalError(format!("error parsing migration content {mig:?}: {err}"))
                 })?;
 
-                // run the migration
                 self.db_pool.exec(&sql, vec![]).await?;
 
                 // update migration status
@@ -239,44 +247,37 @@ impl Modeller {
     }
 
     /// Generate migration for changed models if any.
-    async fn generate_migrations(&self, stream: &[u8]) -> OpResult<()> {
-        let metadata = self.load_metadata().await?;
-        // let raw = self.raw;
+    async fn generate_migrations(&self, stream: &[u8], metadata: &[u8]) -> OpResult<()> {
+        let pm = decode_raw(&metadata)?; // previous models
+        let cm = decode_raw(stream)?; // current models
 
-        if &metadata != stream {
-            let pm = decode_raw(&metadata)?; // previous models
-            let cm = decode_raw(stream)?; // current models
+        let mut queries = Vec::with_capacity(cm.len());
+        let bt = &self.bt;
 
-            let mut queries = Vec::with_capacity(cm.len());
-            let bt = &self.bt;
-
-            for model in cm {
-                // check if model already exists
-                let exists = pm.iter().find(|p| model.name() == p.name());
-                match exists {
-                    Some(prev) => {
-                        if let Some(q) = model.sql_alter_table(prev, bt) {
-                            queries.push(q);
-                        }
-                    }
-                    None => {
-                        let q = model.sql_create_table(bt);
+        for model in cm {
+            // check if model already exists
+            let exists = pm.iter().find(|p| model.name() == p.name());
+            match exists {
+                Some(prev) => {
+                    if let Some(q) = model.sql_alter_table(prev, bt) {
                         queries.push(q);
                     }
                 }
+                None => {
+                    let q = model.sql_create_table(bt);
+                    queries.push(q);
+                }
             }
-            if !queries.is_empty() {
-                // wite query to migration file
-                let filename = generate_migration_filename();
-                let file = self.build_migration_path(&filename)?;
+        }
+        if !queries.is_empty() {
+            // wite query to migration file
+            let filename = generate_migration_filename();
+            let file = self.get_migration_child(&filename);
 
-                let mut file = open_file(&file).await?;
-                let content = queries.join("\n\n");
+            let mut file = open_file(&file).await?;
+            let content = queries.join("\n\n");
 
-                file.write_all(content.as_bytes()).await?;
-            }
-        } else {
-            println!("modeller: no changes detected!")
+            file.write_all(content.as_bytes()).await?;
         }
 
         Ok(())
@@ -318,6 +319,14 @@ impl Modeller {
         let content = tokio::fs::read(&mf).await?;
 
         Ok(content)
+    }
+
+    async fn remove_stream() -> OpResult<()> {
+        let mp = migrations_dir();
+        let mf = mp.join("stream");
+
+        tokio::fs::remove_file(&mf).await?;
+        Ok(())
     }
 }
 

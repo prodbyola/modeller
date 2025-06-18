@@ -45,6 +45,7 @@ macro_rules! define_models {
     ) => {
         use modeller_parser::parse_models;
         use $crate::implementor::Modeller;
+        use $crate::errors::Error;
 
         // parse the input models into a vector of strigified
         // `ModelDefinition`
@@ -60,7 +61,7 @@ macro_rules! define_models {
             ),*,
         }
 
-        pub async fn write_stream(stream: &mut Vec<u8>) -> OpResult<()> {
+        pub async fn write_stream(stream: &mut Vec<u8>) -> Result<(), Error> {
             Modeller::write_stream(stream).await?;
             Ok(())
         }
@@ -79,7 +80,7 @@ mod tests {
                 country: Option<String>,
 
                 #[modeller(name=user_location, default=Lagos, unique)]
-                state: u32,
+                state: String,
 
                 // #[modeller(default=CURRENT_TIMESTAMP)]
                 // created_at: Datetime
@@ -96,14 +97,15 @@ mod tests {
                 age: Option<u32>,
 
                 #[modeller(type=NULLABLE TEXT)]
-                bio: String
+                bio: u32
             }
         }
 
         let mut streams = modeller_definition_streams();
         write_stream(&mut streams).await?;
 
-        // modeller.run().await?;
+        let modeller = Modeller::new();
+        modeller.run().await?;
 
         Ok(())
     }
