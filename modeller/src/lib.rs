@@ -2,12 +2,13 @@ use std::path::PathBuf;
 
 use chrono::Utc;
 
-use crate::errors::OpResult;
 use crate::implementor::Modeller;
 pub use modeller_parser;
 
 pub mod errors;
 pub mod implementor;
+
+pub type OpResult<T> = Result<T, errors::Error>;
 
 const DB_URL_KEY: &str = "MODELLER_DATABASE_URL";
 const MIG_DIR_KEY: &str = "MODELLER_MIGRATIONS_DIR";
@@ -76,7 +77,7 @@ pub async fn run_modeller() -> Result<(), errors::Error> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{errors::OpResult, run_modeller};
+    use crate::{OpResult, run_modeller};
 
     #[tokio::test]
     async fn test_modeller() -> OpResult<()> {

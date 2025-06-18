@@ -1,7 +1,5 @@
 use std::{env, fmt::Display, io};
 
-pub type OpResult<T> = Result<T, Error>;
-
 #[derive(Debug)]
 pub enum Error {
     VarError(env::VarError),

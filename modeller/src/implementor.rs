@@ -4,8 +4,7 @@ use std::path::PathBuf;
 
 use crate::{
     DB_URL_KEY, DEFAULT_DB, DEFAULT_MIG_DIR, METADATA_FILENAME, MIG_DIR_KEY, MIG_TABLE_NAME,
-    errors::{Error, OpResult},
-    generate_migration_filename, open_file,
+    OpResult, errors::Error, generate_migration_filename, open_file,
 };
 use definitions::{backend_type::BackendType, model::ModelDefinition};
 use rbatis::RBatis;
