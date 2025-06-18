@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crate::{
     DB_URL_KEY, DEFAULT_DB, DEFAULT_MIG_DIR, METADATA_FILENAME, MIG_DIR_KEY, MIG_TABLE_NAME,
-    OpResult, RAW_TERMINATOR, errors::Error, generate_migration_filename, open_file,
+    OpResult, errors::Error, generate_migration_filename, open_file,
 };
 use definitions::{backend_type::BackendType, model::ModelDefinition};
 use rbatis::RBatis;
@@ -290,14 +290,34 @@ impl Modeller {
             .open(&mf)
             .await?;
 
-        let mut fc = tokio::fs::read(mf).await?;
-        let content = if !fc.is_empty() {
-            fc.push(RAW_TERMINATOR);
-            fc.append(stream);
-            &fc
-        } else {
-            stream
-        };
+        let stream_size = stream.len() as u32;
+        let mut stream_size_block = stream_size.to_ne_bytes().to_vec();
+
+        let mut total: u8 = 1;
+        let mut blocks = Vec::new();
+        let mut models = Vec::new();
+        let mut content = Vec::new();
+
+        let fc = tokio::fs::read(mf).await?;
+
+        // check if stream file already exists
+        if let Some(count) = fc.first() {
+            let total_blocks = (*count as usize) * 4;
+            let mut iter = fc.iter();
+            iter.next(); // take out first byte (count)
+
+            blocks = iter.clone().take(total_blocks).map(|b| b.clone()).collect();
+            total = count + 1;
+
+            models = iter.skip(total_blocks).map(|b| b.clone()).collect();
+        }
+
+        blocks.append(&mut stream_size_block);
+        models.append(stream);
+
+        content.push(total);
+        content.append(&mut blocks);
+        content.append(&mut models);
 
         file.write(&content).await?;
 
@@ -330,28 +350,51 @@ fn migrations_dir() -> PathBuf {
 
 fn decode_raw(raw: &[u8]) -> OpResult<Vec<ModelDefinition>> {
     let config = config::standard();
-    let mut results = Vec::new();
-    let mut split_start = 0;
 
-    for (idx, byte) in raw.iter().enumerate() {
-        if byte == &RAW_TERMINATOR {
-            let model_data = &raw[split_start..idx];
-            let dd = bincode::decode_from_slice(model_data, config)
-                .map_err(|err| Error::InternalError(err.to_string()))?;
+    let results = match raw.first() {
+        Some(count) => {
+            let mut iter = raw.iter();
+            iter.next();
 
-            results.push(dd.0);
-            split_start += idx + 1;
-            continue;
+            let block_space = (*count as usize) * 4;
+            let blocks = iter.clone().take(block_space).cloned();
+            let mut block_sizes: Vec<u32> = Vec::with_capacity(*count as usize);
+
+            for i in 0..*count {
+                let offset = (4 * i) as usize;
+                let window = blocks.clone().skip(offset).take(4).collect::<Vec<_>>();
+
+                let mut arr = [0u8; 4];
+                arr.copy_from_slice(&window[0..4]);
+
+                let s = u32::from_ne_bytes(arr);
+                block_sizes.push(s);
+            }
+
+            let mut models = Vec::with_capacity(block_sizes.len());
+            let mut offset = 0;
+
+            let contents = iter.clone().skip(block_space);
+            for size in block_sizes {
+                let content = contents
+                    .clone()
+                    .skip(offset)
+                    .take(size as usize)
+                    .cloned()
+                    .collect::<Vec<_>>();
+
+                let (model, _): (ModelDefinition, usize) =
+                    bincode::decode_from_slice(&content, config)
+                        .map_err(|err| Error::InternalError(err.to_string()))?;
+
+                models.push(model);
+                offset += size as usize;
+            }
+
+            models
         }
-
-        if idx == raw.len() - 1 {
-            let model_data = &raw[split_start..idx + 1];
-            let dd = bincode::decode_from_slice(model_data, config)
-                .map_err(|err| Error::InternalError(err.to_string()))?;
-
-            results.push(dd.0);
-        }
-    }
+        None => vec![],
+    };
 
     Ok(results)
 }

@@ -61,7 +61,7 @@ impl ColumnType {
             "u8" | "i8" => Int8,
             "String" | "str" => VarChar,
             "Text" => Text,
-            "Timestamp" | "Datetime" => Datetime,
+            "Timestamp" | "DateTime" => Datetime,
             "bool" => Bool,
             _ => panic!("ColumnDefinition not implemented for {ty}"),
         }

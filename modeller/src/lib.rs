@@ -16,7 +16,6 @@ const DEFAULT_DB: &str = "sqlite://db.sqlite";
 const DEFAULT_MIG_DIR: &str = "migrations";
 const MIG_TABLE_NAME: &str = "mmm_migrations";
 const METADATA_FILENAME: &str = "metadata";
-const RAW_TERMINATOR: u8 = 0x70;
 
 fn generate_migration_filename() -> String {
     let now = Utc::now().format("%Y%m%d_%H%M%S").to_string();
@@ -82,6 +81,7 @@ pub async fn run_modeller() -> Result<(), errors::Error> {
     modeller.run().await
 }
 
+#[allow(dead_code)]
 #[cfg(test)]
 mod tests {
     use crate::{OpResult, run_modeller};
@@ -113,12 +113,17 @@ mod tests {
 
                 #[modeller(type=NULLABLE TEXT)]
                 bio: u32
+            },
+            pub struct Product {
+                id: u64,
+                name: String,
             }
         }
 
         // write streams for each model
         TestModel::write_stream().await?;
         AnotherModel::write_stream().await?;
+        Product::write_stream().await?;
 
         // in your main, lib or mod
         run_modeller().await?;
