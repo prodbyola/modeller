@@ -23,14 +23,17 @@ pub struct Modeller {
 impl Modeller {
     /// run Modeller instance
     pub async fn run(&self) -> OpResult<()> {
+        // connect to database
         self.connect().await?;
+        self.create_migrations_table().await?;
 
+        // create metadata file if it does not exist
         let mf = self.metadata_filename();
-
         if !mf.is_file() {
-            self.init().await?;
+            self.creation_metadata_file().await?;
         }
 
+        // load raw data
         let stream = Self::load_stream().await?;
         let metadata = self.load_metadata().await?;
 
@@ -44,30 +47,20 @@ impl Modeller {
             }
         }
 
+        // run migrations and update metadata
         self.run_pending_migrations().await?;
         self.update_metadata(&stream).await?;
 
+        // remove raw stream
         Self::remove_stream().await?;
 
         Ok(())
     }
 
-    /// initializes modeller.
-    /// - create database "migrations" table if it doesn't exist
-    /// - create metadata file.
-    async fn init(&self) -> OpResult<()> {
-        // perform init
-        self.create_migrations_table().await?;
-        self.creation_metadata_file().await?;
-
-        Ok(())
-    }
-
+    /// create migrations table if it does not exist
     async fn create_migrations_table(&self) -> OpResult<()> {
         let query = format!(
             "
-            DROP TABLE IF EXISTS {MIG_TABLE_NAME};
-
             CREATE TABLE IF NOT EXISTS {MIG_TABLE_NAME} (
                 filename VARCHAR(200) NOT NULL UNIQUE
             );"

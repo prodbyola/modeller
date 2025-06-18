@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use chrono::Utc;
 
 use crate::errors::OpResult;
+use crate::implementor::Modeller;
 pub use modeller_parser;
 
 pub mod errors;
@@ -68,9 +69,14 @@ macro_rules! define_models {
     };
 }
 
+pub async fn run_modeller() -> Result<(), errors::Error> {
+    let modeller = Modeller::new();
+    modeller.run().await
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::errors::OpResult;
+    use crate::{errors::OpResult, run_modeller};
 
     #[tokio::test]
     async fn test_modeller() -> OpResult<()> {
@@ -104,8 +110,8 @@ mod tests {
         let mut streams = modeller_definition_streams();
         write_stream(&mut streams).await?;
 
-        let modeller = Modeller::new();
-        modeller.run().await?;
+        // in your main, lib or mod
+        run_modeller().await?;
 
         Ok(())
     }
