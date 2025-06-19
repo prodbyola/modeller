@@ -84,7 +84,6 @@ impl ModelDefinition {
             let old_table_name = format!("{table_name}_old");
 
             // backup table
-
             let mut query = format!(
                 "DROP TABLE IF EXISTS {old_table_name};\nALTER TABLE {table_name} RENAME TO {old_table_name};\n",
             );

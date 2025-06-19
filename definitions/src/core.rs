@@ -45,21 +45,6 @@ impl Parse for DefinitionStream {
     }
 }
 
-// impl ToTokens for DefinitionStream {
-//     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-//         let bytes = match self.raw() {
-//             Ok(raw) => raw,
-//             Err(err) => panic!("{}", err),
-//         };
-
-//         tokens.extend(quote! {
-//             pub fn modeller_definition_streams() -> Vec<u8> {
-//                 vec![#(#bytes),*]
-//             }
-//         });
-//     }
-// }
-
 pub struct Definitions {
     pub bt: BackendType,
     pub models: Vec<ModelDefinition>,
