@@ -95,7 +95,7 @@ mod tests {
                 country: Option<String>,
 
                 #[modeller(name=user_location, default=Lagos, unique)]
-                state: u32,
+                state: String,
 
                 // #[modeller(default=CURRENT_TIMESTAMP)]
                 // created_at: Datetime

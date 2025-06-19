@@ -10,6 +10,7 @@ pub struct FieldDefinition {
     col_type: ColumnType,
     serial: bool, // autoincrement field
     unique: bool,
+    primary: bool,
     default_value: Option<String>,
     length: Option<usize>,
 }
@@ -28,12 +29,13 @@ impl FieldDefinition {
         } else {
             let col_type = &self.col_type.to_sql(&self.length);
             let unique = if self.unique { "UNIQUE" } else { "" };
+            let primary = if self.primary { "PRIMARY KEY" } else { "" };
             let default_value = &self
                 .default_value
                 .as_ref()
                 .map(|v| format!("DEFAULT {}", v.trim()))
                 .unwrap_or(String::new());
-            format!("{col} {col_type} {unique} {default_value}")
+            format!("{col} {col_type} {unique} {default_value} {primary}")
         }
     }
 
@@ -55,6 +57,7 @@ impl From<&Field> for FieldDefinition {
         let mut col_type = ty.into();
         let mut serial = false;
         let mut unique = false;
+        let mut primary = false;
         let mut default_value = None;
         let mut length = None;
 
@@ -65,9 +68,10 @@ impl From<&Field> for FieldDefinition {
                         let value = meta.tokens.to_string();
                         for prop in value.split(",") {
                             let prop = prop.trim();
-                            if ["serial", "unique"].contains(&prop) {
+                            if ["serial", "unique", "primary"].contains(&prop) {
                                 serial = prop == "serial";
                                 unique = prop == "unique";
+                                primary = prop == "primary";
 
                                 continue;
                             }
@@ -104,6 +108,7 @@ impl From<&Field> for FieldDefinition {
             unique,
             default_value,
             length,
+            primary,
         }
     }
 }
