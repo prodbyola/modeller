@@ -90,7 +90,11 @@ impl ModelDefinition {
             );
 
             // recreate table
-            let field_sqls = self.field_sqls(bt);
+            let mut field_sqls = self.field_sqls(bt);
+            if let Some(ut_sql) = self.unique_together_sql(bt) {
+                field_sqls.push(ut_sql);
+            }
+
             let create_table = format!(
                 "CREATE TABLE {table_name} (\n\t{}\n);\n",
                 field_sqls.join(",\n\t")
