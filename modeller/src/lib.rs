@@ -114,9 +114,11 @@ mod tests {
                 #[modeller(type=NULLABLE TEXT)]
                 bio: u32
             },
+            #[unique_together = "name,puk"]
             pub struct Product {
                 id: u64,
                 name: String,
+                puk: String,
             }
         }
 

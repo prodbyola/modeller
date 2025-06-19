@@ -18,6 +18,7 @@ pub fn impl_parse_models(stream: TokenStream) -> TokenStream {
         let attrs: Vec<&Attribute> = attrs
             .into_iter()
             .filter(|attr| should_keep_attr(attr, "table_name"))
+            .filter(|attr| should_keep_attr(attr, "unique_together"))
             .collect();
 
         let ident = &item.ident;

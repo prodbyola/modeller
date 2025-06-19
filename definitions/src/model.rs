@@ -1,11 +1,13 @@
 use crate::{backend_type::BackendType, field::FieldDefinition};
 use bincode::{Decode, Encode, config};
+use proc_macro2::Span;
 use quote::ToTokens;
-use syn::{Expr, ItemStruct, Meta};
+use syn::{Expr, Ident, ItemStruct, Meta};
 
 #[derive(Encode, Decode)]
 pub struct ModelDefinition {
     name: String,
+    unique_together: Option<String>,
     fields: Vec<FieldDefinition>,
 }
 
@@ -21,10 +23,16 @@ impl ModelDefinition {
     /// Generate `CREATE TABLE` sql query for the model.
     pub fn sql_create_table(&self, bt: &BackendType) -> String {
         let table_name = &self.name;
-        let field_sqls = self.field_sqls(bt);
+        let mut field_sqls = self.field_sqls(bt);
+
+        if let Some(ut_sql) = self.unique_together_sql(bt) {
+            field_sqls.push(ut_sql);
+        }
 
         format!(
-            "DROP TABLE IF EXISTS {table_name};\nCREATE TABLE {table_name} (\n\t{}\n);",
+            "DROP TABLE IF EXISTS {table_name};\n\
+            CREATE TABLE {table_name} (\n\t{}\n);
+            ",
             field_sqls.join(",\n\t")
         )
     }
@@ -111,14 +119,37 @@ impl ModelDefinition {
             Some(queries.join("\n\n"))
         }
     }
+
+    fn unique_together_sql(&self, bt: &BackendType) -> Option<String> {
+        use BackendType::*;
+
+        if let Some(ut) = &self.unique_together {
+            let cols: Vec<&str> = ut.split(",").map(|c| c.trim()).collect();
+            if !cols.is_empty() {
+                let name = cols.join("_");
+                let sql = match bt {
+                    MySql => format!("UNIQUE KEY {name} ({ut})"),
+                    Postgres => format!("CONSTRAINT {name} UNIQUE ({ut})"),
+                    Sqlite => format!("UNIQUE ({ut})"),
+                };
+
+                return Some(sql);
+            }
+        }
+
+        None
+    }
 }
 
 impl From<&ItemStruct> for ModelDefinition {
     fn from(value: &ItemStruct) -> Self {
         let name = parse_model_name(&value);
+        let unique_together = parse_model_attr(&value, "unique_together");
         let ItemStruct { fields, .. } = value;
+
         ModelDefinition {
             name,
+            unique_together,
             fields: fields.iter().map(FieldDefinition::from).collect(),
         }
     }
@@ -129,23 +160,7 @@ impl From<&ItemStruct> for ModelDefinition {
 /// We first seek if model struct has a #\[table_name = ".."] attribute.
 /// Otherwise we parse the struct name as a valid database table name.
 fn parse_model_name(model: &ItemStruct) -> String {
-    let mut name = None;
-
-    for attr in &model.attrs {
-        if let Some(ident) = attr.path().get_ident() {
-            if ident == "table_name" {
-                if let Meta::NameValue(meta) = &attr.meta {
-                    if let Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Str(table_name),
-                        ..
-                    }) = &meta.value
-                    {
-                        name = Some(table_name.value())
-                    }
-                }
-            }
-        }
-    }
+    let name = parse_model_attr(model, "table_name");
 
     name.unwrap_or_else(|| {
         let struct_name = model.ident.to_token_stream().to_string();
@@ -165,6 +180,29 @@ fn parse_model_name(model: &ItemStruct) -> String {
 
         name
     })
+}
+
+fn parse_model_attr(model: &ItemStruct, attr_name: &str) -> Option<String> {
+    let mut attr_value = None;
+    let attr_name = Ident::new(attr_name, Span::call_site());
+
+    for attr in &model.attrs {
+        if let Some(ident) = attr.path().get_ident() {
+            if ident == &attr_name {
+                if let Meta::NameValue(meta) = &attr.meta {
+                    if let Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Str(value_lit),
+                        ..
+                    }) = &meta.value
+                    {
+                        attr_value = Some(value_lit.value())
+                    }
+                }
+            }
+        }
+    }
+
+    attr_value
 }
 
 impl PartialEq for ModelDefinition {
