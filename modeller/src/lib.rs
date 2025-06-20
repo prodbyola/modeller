@@ -19,6 +19,7 @@ fn generate_migration_filename() -> String {
 async fn open_file(path: &PathBuf) -> OpResult<tokio::fs::File> {
     let f = tokio::fs::OpenOptions::new()
         .create(true)
+        .append(true)
         .write(true)
         .open(path)
         .await?;

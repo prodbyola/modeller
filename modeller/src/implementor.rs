@@ -19,10 +19,7 @@ pub struct ModellerExec {
 impl ModellerExec {
     /// run Modeller instance
     pub async fn run(&self) -> OpResult<()> {
-        println!("connecting to database...");
         self.connect().await?;
-
-        println!("database connected...");
         self.create_migrations_table().await?;
 
         // create metadata file if it does not exist
@@ -108,7 +105,7 @@ impl ModellerExec {
         let path = self.get_migration_child(&filename);
 
         let mut file = open_file(&path).await?;
-        let content = create_sqls.join("\n\n");
+        let content = create_sqls.join("\n");
 
         file.write_all(content.as_bytes()).await?;
 
@@ -165,7 +162,7 @@ impl ModellerExec {
                     .filter_map(|v| v.as_map().map(|m| m.get(&Value::from("filename")).into()))
                     .collect()
             })
-            .unwrap_or(vec![]);
+            .unwrap_or_default();
 
         Ok(results)
     }
@@ -287,7 +284,6 @@ impl ModellerExec {
 
         let mut file = tokio::fs::OpenOptions::new()
             .create(true)
-            .append(true)
             .write(true)
             .open(&stream_path)
             .await?;
