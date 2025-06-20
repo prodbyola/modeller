@@ -2,11 +2,11 @@ use crate::{backend_type::BackendType, field::FieldDefinition};
 use bincode::{Decode, Encode, config};
 use darling::{FromDeriveInput, util::PathList};
 
-#[derive(Default, FromDeriveInput)]
+#[derive(Default, FromDeriveInput, Debug)]
 #[darling(attributes(modeller), supports(struct_named))]
 pub struct ModelArgs {
     #[darling(rename = "table_name")]
-    pub name: String,
+    pub name: Option<String>,
     pub unique_together: Option<PathList>,
 }
 

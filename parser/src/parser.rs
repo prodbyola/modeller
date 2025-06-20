@@ -19,7 +19,7 @@ pub fn impl_parse_models(stream: TokenStream) -> TokenStream {
     let mut unique_together = None;
 
     if let Ok(args) = ModelArgs::from_derive_input(&input) {
-        name = args.name;
+        name = args.name.unwrap_or(name);
         unique_together = args.unique_together.map(|list| {
             list.iter()
                 .map(|p| p.to_token_stream().to_string())
