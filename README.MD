@@ -3,52 +3,51 @@ Define database schema, create migrations and run migration queries all from Rus
 
 Example:
 ```rust
-// defining models
-define_models! {
+    // define one or more models in a specific module.
+    #[derive(Modeller)]
     struct TestModel {
+        #[modeller(serial)]
         id: u64,
         country: Option<String>,
 
-        #[modeller(name=user_location, default=Lagos, unique)]
-        state: u32
-    },
-    #[table_name = "custom_table_name"]
-    struct AnotherModel {
+        #[modeller(name = "user_location", default = "Lagos", unique)]
+        state: String,
+        // #[modeller(default=CURRENT_TIMESTAMP)]
+        // created_at: Datetime
+    }
+
+    #[derive(Modeller)]
+    #[modeller(table_name = "custom_table_name")]
+    pub struct AnotherModel {
         #[modeller(serial)]
         id: u64,
 
-        #[modeller(unique, length=12)]
+        #[modeller(unique, length = 12)]
         username: String,
 
-        #[modeller(default=18)]
+        #[modeller(default = "18")]
         age: Option<u32>,
 
-        #[modeller(type=NULLABLE TEXT)]
-        bio: String
-    },
-}
+        #[modeller(type = "NULLABLE TEXT")]
+        bio: u32,
+    }
 
-// write streams for each model
-TestModel::write_stream().await?;
-AnotherModel::write_stream().await?;
+    #[derive(Modeller)]
+    #[modeller(unique_together(name, puk))]
+    pub struct Product {
+        id: u64,
+        name: String,
+        puk: String,
+    }
 
-// in your main, lib or mod
-run_modeller().await?;
+    // write streams for each model
+    let config = Config::default();
+    TestModel::write_stream(&config).await?;
+    AnotherModel::write_stream(&config).await?;
+    Product::write_stream(&config).await?;
 
-// result migration query for creating tables:
-// CREATE TABLE test_model (
-// 	id BIGINT NOT NULL,
-// 	country VARCHAR,
-// 	user_location INTEGER NOT NULL UNIQUE DEFAULT Lagos
-// );
-
-// CREATE TABLE custom_table_name (
-// 	id INTEGER PRIMARY KEY AUTOINCREMENT,
-// 	username VARCHAR(12) NOT NULL UNIQUE,
-// 	age INTEGER  DEFAULT 18,
-// 	bio TEXT
-// );
-
+    // in your main, lib or mod
+    run_modeller(&config).await?;
 ```
 
 Please see flow description for [how it works](https://github.com/prodbyola/modeller/blob/main/FLOW.MD).
