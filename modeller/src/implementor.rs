@@ -10,13 +10,13 @@ use rbdc_pg::PgDriver;
 use rbdc_sqlite::SqliteDriver;
 use tokio::io::AsyncWriteExt;
 
-pub struct Modeller {
+pub struct ModellerExec {
     bt: BackendType,
     pool: RBatis,
     config: Config,
 }
 
-impl Modeller {
+impl ModellerExec {
     /// run Modeller instance
     pub async fn run(&self) -> OpResult<()> {
         println!("connecting to database...");

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use chrono::Utc;
 
-use crate::{config::Config, implementor::Modeller};
+use crate::{config::Config, implementor::ModellerExec};
 pub use modeller_parser;
 
 pub mod config;
@@ -26,95 +26,54 @@ async fn open_file(path: &PathBuf) -> OpResult<tokio::fs::File> {
     Ok(f)
 }
 
-#[macro_export]
-macro_rules! define_models {
-    (
-        $(
-            $(#[$meta:meta])*
-            $vis:vis struct $name:ident {
-                $(
-                    $(#[$field_attr:meta])*
-                    $field_vis:vis $field:ident : $ty:ty
-                ),* $(,)?
-            }
-        ),*
-    ) => {
-        // use modeller_parser::parse_models;
-        use $crate::config::Config;
-        use $crate::errors::Error;
-        use $crate::implementor::Modeller;
-
-        // parse the input models into a vector of strigified
-        // `ModelDefinition`
-        // parse_models! {
-        //     $(
-        //         $(#[$meta])*
-        //         $vis struct $name {
-        //             $(
-        //                 $(#[$field_attr])*
-        //                 $field_vis $field: $ty,
-        //             )*
-        //         }
-        //     ),*,
-        // }
-
-        // $(
-        //     impl $name {
-        //         pub async fn write_stream(config: &Config) -> Result<(), Error> {
-        //             let mut stream = Self::get_stream();
-        //             Modeller::write_stream(&mut stream, config).await?;
-
-        //             Ok(())
-        //         }
-        //     }
-        // )*
-    };
-}
-
 pub async fn run_modeller(config: &Config) -> Result<(), errors::Error> {
-    let modeller = Modeller::new(config);
+    let modeller = ModellerExec::new(config);
     modeller.run().await
 }
 
 #[allow(dead_code)]
 #[cfg(test)]
 mod tests {
-    use crate::{OpResult, run_modeller};
+    use modeller_parser::Modeller;
+
+    use crate::{Config, ModellerExec, OpResult, errors::Error, run_modeller};
 
     #[tokio::test]
     async fn test_modeller() -> OpResult<()> {
         // define one or more models in a specific module.
-        define_models! {
-            struct TestModel {
-                id: u64,
-                country: Option<String>,
+        #[derive(Modeller)]
+        struct TestModel {
+            id: u64,
+            country: Option<String>,
 
-                #[modeller(name=user_location, default=Lagos, unique)]
-                state: String,
+            #[modeller(name=user_location, default=Lagos, unique)]
+            state: String,
+            // #[modeller(default=CURRENT_TIMESTAMP)]
+            // created_at: Datetime
+        }
 
-                // #[modeller(default=CURRENT_TIMESTAMP)]
-                // created_at: Datetime
-            },
-            #[table_name = "custom_table_name"]
-            pub struct AnotherModel {
-                #[modeller(serial)]
-                id: u64,
+        #[derive(Modeller)]
+        #[modeller(table_name = "custom_table_name")]
+        pub struct AnotherModel {
+            #[modeller(serial)]
+            id: u64,
 
-                #[modeller(unique, length=12)]
-                username: String,
+            #[modeller(unique, length = 12)]
+            username: String,
 
-                #[modeller(default=18)]
-                age: Option<u32>,
+            #[modeller(default = 18)]
+            age: Option<u32>,
 
-                #[modeller(type=NULLABLE TEXT)]
-                bio: u32
-            },
-            #[unique_together = "name,puk"]
-            pub struct Product {
-                id: u64,
-                name: String,
-                puk: String,
-            }
+            #[modeller(type=NULLABLE TEXT)]
+            bio: u32,
+        }
+
+        #[derive(Modeller)]
+        #[modeller(unique_together = "name,puk")]
+        pub struct Product {
+            id: u64,
+            name: String,
+            puk: String,
         }
 
         // write streams for each model
