@@ -34,7 +34,7 @@ pub fn impl_parse_models(stream: TokenStream) -> TokenStream {
                 .map(|f| {
                     let mut field: FieldDefinition = f.into();
 
-                    if let Ok(opts) = FieldOptions::from_field(&f) {
+                    if let Ok(opts) = FieldOptions::from_field(f) {
                         field.accept_opts(opts);
                     }
 
@@ -50,7 +50,7 @@ pub fn impl_parse_models(stream: TokenStream) -> TokenStream {
             };
 
             let config = config::standard();
-            let raw = bincode::encode_to_vec(model, config).unwrap_or(vec![]);
+            let raw = bincode::encode_to_vec(model, config).unwrap_or_default();
             quote! {
                 impl #ident {
                     pub async fn write_stream(config: &Config) -> Result<(), Error> {

@@ -57,7 +57,7 @@ impl FieldDefinition {
                 .default_value
                 .as_ref()
                 .map(|v| format!("DEFAULT {}", v.trim()))
-                .unwrap_or(String::new());
+                .unwrap_or_default();
             format!("{col} {col_type} {unique} {default_value} {primary}")
         }
     }
@@ -136,7 +136,7 @@ impl From<&Field> for FieldDefinition {
 impl PartialEq for FieldDefinition {
     fn eq(&self, other: &Self) -> bool {
         let config = config::standard();
-        let s = bincode::encode_to_vec(&self, config);
+        let s = bincode::encode_to_vec(self, config);
         let o = bincode::encode_to_vec(other, config);
 
         if let (Ok(s), Ok(o)) = (s, o) {

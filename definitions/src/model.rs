@@ -53,10 +53,8 @@ impl ModelDefinition {
     /// Generate `ALTER TABLE` queries if changes are detected
     /// on a model.
     ///
-    /// - If existing columns are modified, we generate a query to
-    /// remove the column and replace with the updated version
-    /// - If new columns were added, we generate a query to add a new
-    /// columns
+    /// - If existing columns are modified, we generate a query to remove the column and replace with the updated version
+    /// - If new columns were added, we generate a query to add a new columns
     pub fn sql_alter_table(&self, prev: &Self, bt: &BackendType) -> Option<String> {
         if self == prev {
             return None;
@@ -154,7 +152,7 @@ impl ModelDefinition {
 impl PartialEq for ModelDefinition {
     fn eq(&self, other: &Self) -> bool {
         let config = config::standard();
-        let s = bincode::encode_to_vec(&self, config);
+        let s = bincode::encode_to_vec(self, config);
         let o = bincode::encode_to_vec(other, config);
 
         if let (Ok(s), Ok(o)) = (s, o) {

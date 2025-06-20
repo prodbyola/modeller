@@ -23,17 +23,17 @@ impl ColumnType {
     pub fn to_sql(&self, len: &Option<usize>) -> String {
         use ColumnType::*;
 
-        let len_str = len.map(|v| format!("({v})")).unwrap_or(String::new());
+        let len_str = len.map(|v| format!("({v})")).unwrap_or_default();
 
         // derive sql from ColumnType
         let sql = |col_type: &ColumnType| match col_type {
             VarChar => format!("{}{len_str}", col_type.to_str()),
-            _ => format!("{}", col_type.to_str()),
+            _ => col_type.to_str().to_string(),
         };
 
         match self {
             Nullable(inner) => sql(inner),
-            _ => format!("{} NOT NULL", sql(&self)),
+            _ => format!("{} NOT NULL", sql(self)),
         }
     }
 

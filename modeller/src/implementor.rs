@@ -37,12 +37,10 @@ impl ModellerExec {
 
         if metadata.is_empty() {
             self.init_query(&stream).await?;
+        } else if metadata != stream {
+            self.generate_migrations(&stream, &metadata).await?;
         } else {
-            if metadata != stream {
-                self.generate_migrations(&stream, &metadata).await?;
-            } else {
-                println!("modeller: no model changes detected.")
-            }
+            println!("modeller: no model changes detected.")
         }
 
         // run migrations and update metadata
@@ -164,8 +162,7 @@ impl ModellerExec {
             .as_array()
             .map(|rows| {
                 rows.iter()
-                    .map(|v| v.as_map().map(|m| m.get(&Value::from("filename")).into()))
-                    .flatten()
+                    .filter_map(|v| v.as_map().map(|m| m.get(&Value::from("filename")).into()))
                     .collect()
             })
             .unwrap_or(vec![]);
@@ -244,7 +241,7 @@ impl ModellerExec {
 
     /// Generate migration for changed models if any.
     async fn generate_migrations(&self, stream: &[u8], metadata: &[u8]) -> OpResult<()> {
-        let pm = decode_raw(&metadata)?; // previous models
+        let pm = decode_raw(metadata)?; // previous models
         let cm = decode_raw(stream)?; // current models
 
         let mut queries = Vec::with_capacity(cm.len());
@@ -290,6 +287,7 @@ impl ModellerExec {
 
         let mut file = tokio::fs::OpenOptions::new()
             .create(true)
+            .append(true)
             .write(true)
             .open(&stream_path)
             .await?;
@@ -310,10 +308,10 @@ impl ModellerExec {
             let mut iter = fc.iter();
             iter.next(); // take out first byte (count)
 
-            blocks = iter.clone().take(total_blocks).map(|b| b.clone()).collect();
+            blocks = iter.clone().take(total_blocks).copied().collect();
             total = count + 1;
 
-            models = iter.skip(total_blocks).map(|b| b.clone()).collect();
+            models = iter.skip(total_blocks).copied().collect();
         }
 
         blocks.append(&mut stream_size_block);
@@ -323,7 +321,7 @@ impl ModellerExec {
         content.append(&mut blocks);
         content.append(&mut models);
 
-        file.write(&content).await?;
+        file.write_all(&content).await?;
 
         Ok(())
     }
