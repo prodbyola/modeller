@@ -1,11 +1,7 @@
 extern crate proc_macro;
 
-use darling::{FromMeta, ast::NestedMeta};
-use definitions::field::FieldDefinition;
 use parser::impl_parse_models;
 use proc_macro::TokenStream;
-use quote::quote;
-use syn::FieldsNamed;
 
 mod parser;
 

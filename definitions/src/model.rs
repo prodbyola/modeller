@@ -1,9 +1,6 @@
 use crate::{backend_type::BackendType, field::FieldDefinition};
 use bincode::{Decode, Encode, config};
 use darling::{FromDeriveInput, util::PathList};
-use proc_macro2::Span;
-use quote::ToTokens;
-use syn::{Expr, Ident, ItemStruct, Meta};
 
 #[derive(Default, FromDeriveInput)]
 #[darling(attributes(modeller), supports(struct_named))]
@@ -135,14 +132,15 @@ impl ModelDefinition {
     fn unique_together_sql(&self, bt: &BackendType) -> Option<String> {
         use BackendType::*;
 
-        if let Some(ut) = &self.unique_together {
-            let cols: Vec<&str> = ut.split(",").map(|c| c.trim()).collect();
+        if let Some(cols) = &self.unique_together {
+            // let cols: Vec<&str> = ut.split(",").map(|c| c.trim()).collect();
             if !cols.is_empty() {
                 let name = cols.join("_");
+                let list = cols.join(", ");
                 let sql = match bt {
-                    MySql => format!("UNIQUE KEY {name} ({ut})"),
-                    Postgres => format!("CONSTRAINT {name} UNIQUE ({ut})"),
-                    Sqlite => format!("UNIQUE ({ut})"),
+                    MySql => format!("UNIQUE KEY {name} ({list})"),
+                    Postgres => format!("CONSTRAINT {name} UNIQUE ({list})"),
+                    Sqlite => format!("UNIQUE ({list})"),
                 };
 
                 return Some(sql);
@@ -171,51 +169,51 @@ impl ModelDefinition {
 ///
 /// We first seek if model struct has a #\[table_name = ".."] attribute.
 /// Otherwise we parse the struct name as a valid database table name.
-fn parse_model_name(model: &ItemStruct) -> String {
-    let name = pfieldarse_model_attr(model, "table_name");
+// fn parse_model_name(model: &ItemStruct) -> String {
+//     let name = pfieldarse_model_attr(model, "table_name");
 
-    name.unwrap_or_else(|| {
-        let struct_name = model.ident.to_token_stream().to_string();
-        let mut name = String::new();
+//     name.unwrap_or_else(|| {
+//         let struct_name = model.ident.to_token_stream().to_string();
+//         let mut name = String::new();
 
-        for (i, c) in struct_name.chars().enumerate() {
-            if c.is_uppercase() {
-                if i > 0 {
-                    name.push('_');
-                }
+//         for (i, c) in struct_name.chars().enumerate() {
+//             if c.is_uppercase() {
+//                 if i > 0 {
+//                     name.push('_');
+//                 }
 
-                name.push(c.to_ascii_lowercase());
-            } else {
-                name.push(c);
-            }
-        }
+//                 name.push(c.to_ascii_lowercase());
+//             } else {
+//                 name.push(c);
+//             }
+//         }
 
-        name
-    })
-}
+//         name
+//     })
+// }
 
-fn parse_model_attr(model: &ItemStruct, attr_name: &str) -> Option<String> {
-    let mut attr_value = None;
-    let attr_name = Ident::new(attr_name, Span::call_site());
+// fn parse_model_attr(model: &ItemStruct, attr_name: &str) -> Option<String> {
+//     let mut attr_value = None;
+//     let attr_name = Ident::new(attr_name, Span::call_site());
 
-    for attr in &model.attrs {
-        if let Some(ident) = attr.path().get_ident() {
-            if ident == &attr_name {
-                if let Meta::NameValue(meta) = &attr.meta {
-                    if let Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Str(value_lit),
-                        ..
-                    }) = &meta.value
-                    {
-                        attr_value = Some(value_lit.value())
-                    }
-                }
-            }
-        }
-    }
+//     for attr in &model.attrs {
+//         if let Some(ident) = attr.path().get_ident() {
+//             if ident == &attr_name {
+//                 if let Meta::NameValue(meta) = &attr.meta {
+//                     if let Expr::Lit(syn::ExprLit {
+//                         lit: syn::Lit::Str(value_lit),
+//                         ..
+//                     }) = &meta.value
+//                     {
+//                         attr_value = Some(value_lit.value())
+//                     }
+//                 }
+//             }
+//         }
+//     }
 
-    attr_value
-}
+//     attr_value
+// }
 
 impl PartialEq for ModelDefinition {
     fn eq(&self, other: &Self) -> bool {
