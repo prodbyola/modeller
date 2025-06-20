@@ -5,7 +5,7 @@ use syn::{DataStruct, DeriveInput, Ident, parse_macro_input};
 use darling::{FromDeriveInput, FromField};
 use definitions::{
     bincode::{self, config},
-    field::FieldDefinition,
+    field::{FieldDefinition, FieldOptions},
     model::{ModelArgs, ModelDefinition},
 };
 
@@ -31,8 +31,16 @@ pub fn impl_parse_models(stream: TokenStream) -> TokenStream {
         syn::Data::Struct(DataStruct { fields, .. }) => {
             let fields = fields
                 .iter()
-                .map(|f| FieldDefinition::from_field(&f).ok())
-                .flatten()
+                .map(|f| {
+                    let mut field: FieldDefinition = f.into();
+
+                    if let Ok(opts) = FieldOptions::from_field(&f) {
+                        field.accept_opts(opts);
+                    }
+
+                    field
+                })
+                // .flatten()
                 .collect::<Vec<_>>();
 
             let model = ModelDefinition {
@@ -44,8 +52,6 @@ pub fn impl_parse_models(stream: TokenStream) -> TokenStream {
             let config = config::standard();
             let raw = bincode::encode_to_vec(model, config).unwrap_or(vec![]);
             quote! {
-                // #input
-
                 impl #ident {
                     pub async fn write_stream(config: &Config) -> Result<(), Error> {
                         let mut stream = vec![#(#raw),*];

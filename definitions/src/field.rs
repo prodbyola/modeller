@@ -3,21 +3,37 @@ use crate::column::ColumnType;
 use bincode::{Decode, Encode, config};
 
 use darling::FromField;
+use quote::ToTokens;
+use syn::Field;
 
-fn parse_column_type(col: String) -> ColumnType {
-    col.as_str().into()
+fn parse_column_type(col: String) -> Option<ColumnType> {
+    Some(col.as_str().into())
 }
 
-#[derive(Debug, Default, Encode, Decode, FromField)]
-#[darling(attributes(modeller), default)]
+#[derive(Debug, Default, Encode, Decode)]
 pub struct FieldDefinition {
     col_name: String,
-
-    #[darling(rename = "type", map = "parse_column_type")]
     col_type: ColumnType,
     serial: bool, // autoincrement field
     unique: bool,
     primary: bool,
+    default_value: Option<String>,
+    length: Option<usize>,
+}
+
+#[derive(FromField, Default)]
+#[darling(attributes(modeller))]
+pub struct FieldOptions {
+    #[darling(rename = "name")]
+    col_name: Option<String>,
+
+    #[darling(rename = "type", map = "parse_column_type")]
+    col_type: Option<ColumnType>,
+    serial: Option<bool>, // autoincrement field
+    unique: Option<bool>,
+    primary: Option<bool>,
+
+    #[darling(rename = "default")]
     default_value: Option<String>,
     length: Option<usize>,
 }
@@ -46,80 +62,76 @@ impl FieldDefinition {
         }
     }
 
+    pub fn accept_opts(&mut self, opts: FieldOptions) {
+        let FieldOptions {
+            col_name,
+            col_type,
+            serial,
+            unique,
+            primary,
+            default_value,
+            length,
+        } = opts;
+        if let Some(name) = col_name {
+            self.col_name = name
+        }
+
+        if let Some(ct) = col_type {
+            self.col_type = ct
+        }
+
+        if let Some(s) = serial {
+            self.serial = s
+        }
+
+        if let Some(u) = unique {
+            self.unique = u
+        }
+
+        if let Some(p) = primary {
+            self.primary = p
+        }
+
+        if let Some(d) = default_value {
+            self.default_value = Some(d)
+        }
+
+        if let Some(l) = length {
+            self.length = Some(l)
+        }
+    }
+
     pub fn col_name(&self) -> &str {
         &self.col_name
     }
 }
 
-// impl From<&Field> for FieldDefinition {
-//     fn from(value: &Field) -> Self {
-//         let Field {
-//             ident, ty, attrs, ..
-//         } = value;
-//         let mut col_name = ident
-//             .as_ref()
-//             .map(|v| v.to_token_stream().to_string())
-//             .unwrap_or("".to_string());
+impl From<&Field> for FieldDefinition {
+    fn from(value: &Field) -> Self {
+        let Field { ident, ty, .. } = value;
+        let col_name = ident
+            .as_ref()
+            .map(|v| v.to_token_stream().to_string())
+            .unwrap_or("".to_string());
 
-//         let mut col_type = ty.into();
-//         let mut serial = false;
-//         let mut unique = false;
-//         let mut primary = false;
-//         let mut default_value = None;
-//         let mut length = None;
+        let col_type = ty.into();
+        let serial = false;
+        let unique = false;
+        let primary = false;
+        let default_value = None;
+        let length = None;
 
-//         for attr in attrs {
-//             if let Some(ident) = attr.path().get_ident() {
-//                 if ident == "modeller" {
-//                     if let Meta::List(meta) = &attr.meta {
-//                         let value = meta.tokens.to_string();
-
-//                         for prop in value.split(",") {
-//                             let prop = prop.trim();
-//                             if ["serial", "unique", "primary"].contains(&prop) {
-//                                 serial = prop == "serial";
-//                                 unique = prop == "unique";
-//                                 primary = prop == "primary";
-
-//                                 continue;
-//                             }
-
-//                             let prop_split: Vec<&str> = prop.split("=").collect();
-//                             if let (Some(key), Some(value)) = (prop_split.get(0), prop_split.get(1))
-//                             {
-//                                 let key = key.trim();
-//                                 if key == "default" {
-//                                     default_value = Some(value.to_string())
-//                                 } else if key == "length" {
-//                                     match value.parse::<usize>() {
-//                                         Ok(len) => length = Some(len),
-//                                         Err(_) => panic!(
-//                                             r#"unable to parse attr "length" for field "{col_name}"."#
-//                                         ),
-//                                     }
-//                                 } else if key == "name" {
-//                                     col_name = value.to_string()
-//                                 } else if key == "type" {
-//                                     col_type = ColumnType::from(*value);
-//                                 }
-//                             }
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-
-//         FieldDefinition {
-//             col_name,
-//             col_type,
-//             serial,
-//             unique,
-//             default_value,
-//             length,
-//             primary,
-//         }
-//     }
-// }
+        FieldDefinition {
+            col_name,
+            col_type,
+            serial,
+            unique,
+            default_value,
+            length,
+            primary,
+        }
+    }
+}
 
 impl PartialEq for FieldDefinition {
     fn eq(&self, other: &Self) -> bool {

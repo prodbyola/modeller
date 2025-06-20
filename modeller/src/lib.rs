@@ -3,11 +3,11 @@ use std::path::PathBuf;
 use chrono::Utc;
 
 use crate::{config::Config, implementor::ModellerExec};
-pub use modeller_parser;
 
-pub mod config;
-pub mod errors;
-pub mod implementor;
+mod config;
+mod errors;
+mod implementor;
+pub mod prelude;
 
 pub type OpResult<T> = Result<T, errors::Error>;
 
@@ -34,19 +34,18 @@ pub async fn run_modeller(config: &Config) -> Result<(), errors::Error> {
 #[allow(dead_code)]
 #[cfg(test)]
 mod tests {
-    use modeller_parser::Modeller;
-
-    use crate::{Config, ModellerExec, OpResult, errors::Error, run_modeller};
+    use crate::prelude::*;
 
     #[tokio::test]
     async fn test_modeller() -> OpResult<()> {
         // define one or more models in a specific module.
         #[derive(Modeller)]
         struct TestModel {
+            #[modeller(serial)]
             id: u64,
             country: Option<String>,
 
-            #[modeller(name=user_location, default=Lagos, unique)]
+            #[modeller(name = "user_location", default = "Lagos", unique)]
             state: String,
             // #[modeller(default=CURRENT_TIMESTAMP)]
             // created_at: Datetime
@@ -61,15 +60,15 @@ mod tests {
             #[modeller(unique, length = 12)]
             username: String,
 
-            #[modeller(default = 18)]
+            #[modeller(default = "18")]
             age: Option<u32>,
 
-            #[modeller(type=NULLABLE TEXT)]
+            #[modeller(type = "NULLABLE TEXT")]
             bio: u32,
         }
 
         #[derive(Modeller)]
-        #[modeller(unique_together = "name,puk")]
+        #[modeller(unique_together(name, puk))]
         pub struct Product {
             id: u64,
             name: String,
