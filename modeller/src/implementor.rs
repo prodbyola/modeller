@@ -12,15 +12,17 @@ use tokio::io::AsyncWriteExt;
 
 pub struct Modeller {
     bt: BackendType,
-    db_pool: RBatis,
+    pool: RBatis,
     config: Config,
 }
 
 impl Modeller {
     /// run Modeller instance
     pub async fn run(&self) -> OpResult<()> {
-        // connect to database
+        println!("connecting to database...");
         self.connect().await?;
+
+        println!("database connected...");
         self.create_migrations_table().await?;
 
         // create metadata file if it does not exist
@@ -63,7 +65,7 @@ impl Modeller {
             );"
         );
 
-        self.db_pool.exec(&query, vec![]).await?;
+        self.pool.exec(&query, vec![]).await?;
         Ok(())
     }
 
@@ -78,7 +80,7 @@ impl Modeller {
     async fn connect(&self) -> OpResult<()> {
         use BackendType::*;
 
-        let rb = &self.db_pool;
+        let rb = &self.pool;
         let url = &self.config.db_url();
 
         match self.bt {
@@ -120,10 +122,10 @@ impl Modeller {
         let db_url = config.db_url();
 
         let bt = db_url.into();
-        let db_pool = RBatis::new();
+        let pool = RBatis::new();
 
         Self {
-            db_pool,
+            pool,
             bt,
             config: config.clone(),
         }
@@ -154,7 +156,7 @@ impl Modeller {
     async fn previous_migrations(&self) -> OpResult<Vec<String>> {
         let table_name = self.config.migrations_table();
         let done_migs = self
-            .db_pool
+            .pool
             .query(&format!("SELECT filename from {table_name}"), vec![])
             .await?;
 
@@ -218,15 +220,13 @@ impl Modeller {
                     Error::InternalError(format!("error parsing migration content {mig:?}: {err}"))
                 })?;
 
-                self.db_pool.exec(&sql, vec![]).await?;
+                self.pool.exec(&sql, vec![]).await?;
 
                 // update migration status
                 let table_name = self.config.migrations_table();
                 let filename = mig.to_str().unwrap_or("");
                 let insert_query = format!("INSERT INTO {table_name} (filename) VALUES(?)");
-                self.db_pool
-                    .exec(&insert_query, vec![filename.into()])
-                    .await?;
+                self.pool.exec(&insert_query, vec![filename.into()]).await?;
             }
         }
 
