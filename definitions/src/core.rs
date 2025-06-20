@@ -1,7 +1,6 @@
 use std::collections::VecDeque;
 
 use bincode::config;
-// use quote::{ToTokens, quote};
 use syn::{ItemStruct, Token, parse::Parse};
 
 use crate::{backend_type::BackendType, model::ModelDefinition};

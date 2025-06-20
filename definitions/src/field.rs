@@ -66,6 +66,7 @@ impl From<&Field> for FieldDefinition {
                 if ident == "modeller" {
                     if let Meta::List(meta) = &attr.meta {
                         let value = meta.tokens.to_string();
+
                         for prop in value.split(",") {
                             let prop = prop.trim();
                             if ["serial", "unique", "primary"].contains(&prop) {

@@ -24,14 +24,15 @@ impl ColumnType {
 
         let len_str = len.map(|v| format!("({v})")).unwrap_or(String::new());
 
-        let sql = match self {
-            VarChar => format!("{}{len_str}", self.to_str()),
-            _ => format!("{}", self.to_str()),
+        // derive sql from ColumnType
+        let sql = |col_type: &ColumnType| match col_type {
+            VarChar => format!("{}{len_str}", col_type.to_str()),
+            _ => format!("{}", col_type.to_str()),
         };
 
         match self {
-            Nullable(_) => sql,
-            _ => format!("{sql} NOT NULL"),
+            Nullable(inner) => sql(inner),
+            _ => format!("{} NOT NULL", sql(&self)),
         }
     }
 
