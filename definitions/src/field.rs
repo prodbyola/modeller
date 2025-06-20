@@ -1,12 +1,19 @@
 use crate::backend_type::BackendType;
 use crate::column::ColumnType;
 use bincode::{Decode, Encode, config};
-use quote::ToTokens;
-use syn::{Field, Meta};
 
-#[derive(Debug, Default, Encode, Decode)]
+use darling::FromField;
+
+fn parse_column_type(col: String) -> ColumnType {
+    col.as_str().into()
+}
+
+#[derive(Debug, Default, Encode, Decode, FromField)]
+#[darling(attributes(modeller), default)]
 pub struct FieldDefinition {
     col_name: String,
+
+    #[darling(rename = "type", map = "parse_column_type")]
     col_type: ColumnType,
     serial: bool, // autoincrement field
     unique: bool,
@@ -44,75 +51,75 @@ impl FieldDefinition {
     }
 }
 
-impl From<&Field> for FieldDefinition {
-    fn from(value: &Field) -> Self {
-        let Field {
-            ident, ty, attrs, ..
-        } = value;
-        let mut col_name = ident
-            .as_ref()
-            .map(|v| v.to_token_stream().to_string())
-            .unwrap_or("".to_string());
+// impl From<&Field> for FieldDefinition {
+//     fn from(value: &Field) -> Self {
+//         let Field {
+//             ident, ty, attrs, ..
+//         } = value;
+//         let mut col_name = ident
+//             .as_ref()
+//             .map(|v| v.to_token_stream().to_string())
+//             .unwrap_or("".to_string());
 
-        let mut col_type = ty.into();
-        let mut serial = false;
-        let mut unique = false;
-        let mut primary = false;
-        let mut default_value = None;
-        let mut length = None;
+//         let mut col_type = ty.into();
+//         let mut serial = false;
+//         let mut unique = false;
+//         let mut primary = false;
+//         let mut default_value = None;
+//         let mut length = None;
 
-        for attr in attrs {
-            if let Some(ident) = attr.path().get_ident() {
-                if ident == "modeller" {
-                    if let Meta::List(meta) = &attr.meta {
-                        let value = meta.tokens.to_string();
+//         for attr in attrs {
+//             if let Some(ident) = attr.path().get_ident() {
+//                 if ident == "modeller" {
+//                     if let Meta::List(meta) = &attr.meta {
+//                         let value = meta.tokens.to_string();
 
-                        for prop in value.split(",") {
-                            let prop = prop.trim();
-                            if ["serial", "unique", "primary"].contains(&prop) {
-                                serial = prop == "serial";
-                                unique = prop == "unique";
-                                primary = prop == "primary";
+//                         for prop in value.split(",") {
+//                             let prop = prop.trim();
+//                             if ["serial", "unique", "primary"].contains(&prop) {
+//                                 serial = prop == "serial";
+//                                 unique = prop == "unique";
+//                                 primary = prop == "primary";
 
-                                continue;
-                            }
+//                                 continue;
+//                             }
 
-                            let prop_split: Vec<&str> = prop.split("=").collect();
-                            if let (Some(key), Some(value)) = (prop_split.get(0), prop_split.get(1))
-                            {
-                                let key = key.trim();
-                                if key == "default" {
-                                    default_value = Some(value.to_string())
-                                } else if key == "length" {
-                                    match value.parse::<usize>() {
-                                        Ok(len) => length = Some(len),
-                                        Err(_) => panic!(
-                                            r#"unable to parse attr "length" for field "{col_name}"."#
-                                        ),
-                                    }
-                                } else if key == "name" {
-                                    col_name = value.to_string()
-                                } else if key == "type" {
-                                    col_type = ColumnType::from(*value);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+//                             let prop_split: Vec<&str> = prop.split("=").collect();
+//                             if let (Some(key), Some(value)) = (prop_split.get(0), prop_split.get(1))
+//                             {
+//                                 let key = key.trim();
+//                                 if key == "default" {
+//                                     default_value = Some(value.to_string())
+//                                 } else if key == "length" {
+//                                     match value.parse::<usize>() {
+//                                         Ok(len) => length = Some(len),
+//                                         Err(_) => panic!(
+//                                             r#"unable to parse attr "length" for field "{col_name}"."#
+//                                         ),
+//                                     }
+//                                 } else if key == "name" {
+//                                     col_name = value.to_string()
+//                                 } else if key == "type" {
+//                                     col_type = ColumnType::from(*value);
+//                                 }
+//                             }
+//                         }
+//                     }
+//                 }
+//             }
+//         }
 
-        FieldDefinition {
-            col_name,
-            col_type,
-            serial,
-            unique,
-            default_value,
-            length,
-            primary,
-        }
-    }
-}
+//         FieldDefinition {
+//             col_name,
+//             col_type,
+//             serial,
+//             unique,
+//             default_value,
+//             length,
+//             primary,
+//         }
+//     }
+// }
 
 impl PartialEq for FieldDefinition {
     fn eq(&self, other: &Self) -> bool {

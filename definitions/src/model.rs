@@ -1,14 +1,23 @@
 use crate::{backend_type::BackendType, field::FieldDefinition};
 use bincode::{Decode, Encode, config};
+use darling::{FromDeriveInput, util::PathList};
 use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{Expr, Ident, ItemStruct, Meta};
 
+#[derive(Default, FromDeriveInput)]
+#[darling(attributes(modeller), supports(struct_named))]
+pub struct ModelArgs {
+    #[darling(rename = "table_name")]
+    pub name: String,
+    pub unique_together: Option<PathList>,
+}
+
 #[derive(Encode, Decode)]
 pub struct ModelDefinition {
-    name: String,
-    unique_together: Option<String>,
-    fields: Vec<FieldDefinition>,
+    pub name: String,
+    pub unique_together: Option<Vec<String>>,
+    pub fields: Vec<FieldDefinition>,
 }
 
 impl ModelDefinition {
@@ -144,26 +153,26 @@ impl ModelDefinition {
     }
 }
 
-impl From<&ItemStruct> for ModelDefinition {
-    fn from(value: &ItemStruct) -> Self {
-        let name = parse_model_name(&value);
-        let unique_together = parse_model_attr(&value, "unique_together");
-        let ItemStruct { fields, .. } = value;
+// impl From<&ItemStruct> for ModelDefinition {
+//     fn from(value: &ItemStruct) -> Self {
+//         let name = parse_model_name(&value);
+//         let unique_together = parse_model_attr(&value, "unique_together");
+//         let ItemStruct { fields, .. } = value;
 
-        ModelDefinition {
-            name,
-            unique_together,
-            fields: fields.iter().map(FieldDefinition::from).collect(),
-        }
-    }
-}
+//         ModelDefinition {
+//             name,
+//             unique_together,
+//             fields: fields.iter().map(FieldDefinition::from).collect(),
+//         }
+//     }
+// }
 
 /// Parse the model name as a valid database table name.
 ///
 /// We first seek if model struct has a #\[table_name = ".."] attribute.
 /// Otherwise we parse the struct name as a valid database table name.
 fn parse_model_name(model: &ItemStruct) -> String {
-    let name = parse_model_attr(model, "table_name");
+    let name = pfieldarse_model_attr(model, "table_name");
 
     name.unwrap_or_else(|| {
         let struct_name = model.ident.to_token_stream().to_string();

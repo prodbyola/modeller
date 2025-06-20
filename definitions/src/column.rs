@@ -1,10 +1,11 @@
 use std::fmt::Display;
 
 use bincode::{Decode, Encode};
+use darling::FromMeta;
 use quote::ToTokens;
 use syn::Type;
 
-#[derive(Debug, Default, Encode, Decode)]
+#[derive(Debug, Default, Encode, Decode, FromMeta)]
 pub(super) enum ColumnType {
     Int8,
     Int16,

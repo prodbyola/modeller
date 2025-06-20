@@ -39,35 +39,35 @@ macro_rules! define_models {
             }
         ),*
     ) => {
-        use modeller_parser::parse_models;
-        use $crate::implementor::Modeller;
-        use $crate::errors::Error;
+        // use modeller_parser::parse_models;
         use $crate::config::Config;
+        use $crate::errors::Error;
+        use $crate::implementor::Modeller;
 
         // parse the input models into a vector of strigified
         // `ModelDefinition`
-        parse_models! {
-            $(
-                $(#[$meta])*
-                $vis struct $name {
-                    $(
-                        $(#[$field_attr])*
-                        $field_vis $field: $ty,
-                    )*
-                }
-            ),*,
-        }
+        // parse_models! {
+        //     $(
+        //         $(#[$meta])*
+        //         $vis struct $name {
+        //             $(
+        //                 $(#[$field_attr])*
+        //                 $field_vis $field: $ty,
+        //             )*
+        //         }
+        //     ),*,
+        // }
 
-        $(
-            impl $name {
-                pub async fn write_stream(config: &Config) -> Result<(), Error> {
-                    let mut stream = Self::get_stream();
-                    Modeller::write_stream(&mut stream, config).await?;
+        // $(
+        //     impl $name {
+        //         pub async fn write_stream(config: &Config) -> Result<(), Error> {
+        //             let mut stream = Self::get_stream();
+        //             Modeller::write_stream(&mut stream, config).await?;
 
-                    Ok(())
-                }
-            }
-        )*
+        //             Ok(())
+        //         }
+        //     }
+        // )*
     };
 }
 
