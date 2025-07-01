@@ -8,6 +8,7 @@ mod config;
 mod errors;
 mod implementor;
 pub mod prelude;
+pub use errors::Error;
 
 pub type OpResult<T> = Result<T, errors::Error>;
 
@@ -83,7 +84,8 @@ mod tests {
         Product::write_stream(&config).await?;
 
         // in your main, lib or mod
-        run_modeller(&config).await?;
+        let runner = run_modeller(&config).await;
+        assert!(runner.is_ok());
 
         Ok(())
     }
