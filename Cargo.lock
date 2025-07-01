@@ -868,6 +868,7 @@ dependencies = [
  "chrono",
  "definitions",
  "modeller_parser",
+ "once_cell",
  "rbatis",
  "rbdc-mysql",
  "rbdc-pg",
