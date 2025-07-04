@@ -336,12 +336,6 @@ impl ModellerExec {
     }
 }
 
-// fn migrations_dir() -> PathBuf {
-//     let dir = std::env::var(MIG_DIR_KEY).unwrap_or(DEFAULT_MIG_DIR.to_string());
-//     let p = self.;
-//     p.join(&dir)
-// }
-
 fn decode_raw(raw: &[u8]) -> OpResult<Vec<ModelDefinition>> {
     let config = config::standard();
 

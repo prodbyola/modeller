@@ -2,11 +2,11 @@ use std::sync::Mutex;
 
 use modeller::prelude::*;
 
-#[allow(dead_code)]
-mod models;
-
 use models::*;
 use once_cell::sync::Lazy;
+
+#[allow(dead_code)]
+mod models;
 
 static LAZY_CONFIG: Lazy<Mutex<Config>> = Lazy::new(|| Mutex::new(Config::default()));
 

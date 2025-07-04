@@ -7,6 +7,7 @@ use crate::{config::Config, implementor::ModellerExec};
 mod config;
 mod errors;
 mod implementor;
+
 pub mod prelude;
 
 pub use errors::Error;

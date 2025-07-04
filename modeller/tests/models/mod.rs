@@ -8,6 +8,7 @@ pub struct TestModel {
 
     #[modeller(name = "user_location", default = "Lagos", unique)]
     state: String,
+    
     // #[modeller(default=CURRENT_TIMESTAMP)]
     // created_at: Datetime
 }

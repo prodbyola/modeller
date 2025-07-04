@@ -2,7 +2,7 @@ use crate::backend_type::BackendType;
 use crate::column::ColumnType;
 use bincode::{Decode, Encode, config};
 
-use darling::FromField;
+use darling::{FromField, FromMeta};
 use quote::ToTokens;
 use syn::Field;
 
@@ -19,6 +19,7 @@ pub struct FieldDefinition {
     primary: bool,
     default_value: Option<String>,
     length: Option<usize>,
+    foreign_key: Option<FkOptions>,
 }
 
 #[derive(FromField, Default)]
@@ -36,6 +37,8 @@ pub struct FieldOptions {
     #[darling(rename = "default")]
     default_value: Option<String>,
     length: Option<usize>,
+
+    foreign_key: Option<FkOptions>,
 }
 
 impl FieldDefinition {
@@ -71,6 +74,7 @@ impl FieldDefinition {
             primary,
             default_value,
             length,
+            foreign_key,
         } = opts;
         if let Some(name) = col_name {
             self.col_name = name
@@ -80,25 +84,12 @@ impl FieldDefinition {
             self.col_type = ct
         }
 
-        if let Some(s) = serial {
-            self.serial = s
-        }
-
-        if let Some(u) = unique {
-            self.unique = u
-        }
-
-        if let Some(p) = primary {
-            self.primary = p
-        }
-
-        if let Some(d) = default_value {
-            self.default_value = Some(d)
-        }
-
-        if let Some(l) = length {
-            self.length = Some(l)
-        }
+        self.serial = serial.unwrap_or_default();
+        self.unique = unique.unwrap_or_default();
+        self.primary = primary.unwrap_or_default();
+        self.default_value = default_value;
+        self.length = length;
+        self.foreign_key = foreign_key;
     }
 
     pub fn col_name(&self) -> &str {
@@ -115,20 +106,11 @@ impl From<&Field> for FieldDefinition {
             .unwrap_or("".to_string());
 
         let col_type = ty.into();
-        let serial = false;
-        let unique = false;
-        let primary = false;
-        let default_value = None;
-        let length = None;
 
         FieldDefinition {
             col_name,
             col_type,
-            serial,
-            unique,
-            default_value,
-            length,
-            primary,
+            ..Default::default()
         }
     }
 }
@@ -144,5 +126,38 @@ impl PartialEq for FieldDefinition {
         } else {
             false
         }
+    }
+}
+
+#[derive(Debug, Default, Encode, Decode, FromMeta)]
+pub struct FkOptions {
+    references: String,
+    on_delete: FkOnDelete,
+}
+
+#[derive(Debug, Default, Encode, Decode, FromMeta)]
+pub enum FkOnDelete {
+    Cascade,
+    Nullify,
+    Default,
+    Restrict,
+
+    #[default]
+    NoAction,
+}
+
+impl FkOnDelete {
+    pub fn to_sql(&self) -> String {
+        use FkOnDelete::*;
+
+        let sql = match self {
+            Cascade => "CASCADE",
+            Nullify => "SET NULL",
+            Default => "SET DEFAULT",
+            Restrict => "RESTRICT",
+            NoAction => "NO ACTION",
+        };
+
+        sql.to_string()
     }
 }
