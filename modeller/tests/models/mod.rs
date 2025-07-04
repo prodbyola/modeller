@@ -1,6 +1,5 @@
-use crate::prelude::*;
+use modeller::prelude::*;
 
-// define one or more models in a specific module.
 #[derive(Modeller)]
 pub struct TestModel {
     #[modeller(serial)]

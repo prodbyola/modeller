@@ -9,10 +9,6 @@ mod errors;
 mod implementor;
 pub mod prelude;
 
-#[allow(dead_code)]
-#[cfg(test)]
-mod tests;
-
 pub use errors::Error;
 
 pub type OpResult<T> = Result<T, errors::Error>;
