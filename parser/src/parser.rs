@@ -53,8 +53,18 @@ pub fn impl_parse_model(stream: TokenStream) -> TokenStream {
 
             quote! {
                 impl #ident {
-                    pub fn get_stream() -> Vec<u8> {
+                    #[cfg(feature = "streams")]
+                    fn get_stream() -> Vec<u8> {
                         vec![#(#raw),*]
+                    }
+
+                    #[cfg(feature = "bincode")]
+                    fn get_definition() -> OpResult<ModelDefinition> {
+                        let stream = Self::get_stream();
+                        let config = config::standard();
+                        let (model, _): (ModelDefinition, _) = bincode::decode_from_slice(&stream, config)?;
+
+                        Ok(model)
                     }
 
                     pub async fn write_stream(config: &Config) -> Result<(), Error> {

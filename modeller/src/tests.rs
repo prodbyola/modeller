@@ -1,10 +1,16 @@
 use definitions::{
     bincode::{self, config},
-    field::FkOnDelete,
+    field::{FieldDefinition, FkOnDelete},
     model::ModelDefinition,
 };
 
 use crate::prelude::*;
+
+#[derive(Modeller)]
+#[modeller(table_name = "users")]
+struct User {
+    pub id: u64,
+}
 
 #[derive(Modeller)]
 struct MockTable {
@@ -13,12 +19,21 @@ struct MockTable {
 }
 
 #[test]
-fn test_foreign_key() -> OpResult<()> {
-    let stream = MockTable::get_stream();
-    let config = config::standard();
-    let (model, _): (ModelDefinition, _) = bincode::decode_from_slice(&stream, config)?;
+fn test_table_name() -> OpResult<()> {
+    let mut model = MockTable::get_definition()?;
+    assert_eq!(model.name(), "mock_table");
 
-    let field = model.fields().iter().find(|f| f.col_name() == "user_id");
+    model = User::get_definition()?;
+    assert_eq!(model.name(), "users");
+
+    Ok(())
+}
+
+#[test]
+fn test_foreign_key() -> OpResult<()> {
+    let model = MockTable::get_definition()?;
+    let field = get_field(&model, "user_id");
+
     if let Some(field) = field {
         let fk = field.foreign_key();
         assert!(field.foreign_key().is_some());
@@ -35,4 +50,8 @@ fn test_foreign_key() -> OpResult<()> {
     }
 
     Ok(())
+}
+
+fn get_field<'a>(model: &'a ModelDefinition, col_name: &str) -> Option<&'a FieldDefinition> {
+    model.fields().iter().find(|f| f.col_name() == col_name)
 }

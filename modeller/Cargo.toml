@@ -3,6 +3,11 @@ name = "modeller"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["streams", "bincode"]
+streams = []                     # enabled by default
+bincode = []
+
 [dependencies]
 modeller_parser = { path = "../parser" }
 definitions = { path = "../definitions" }

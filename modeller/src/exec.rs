@@ -259,6 +259,7 @@ impl ModellerExec {
                 }
             }
         }
+
         if !queries.is_empty() {
             // wite query to migration file
             let filename = generate_migration_filename();
