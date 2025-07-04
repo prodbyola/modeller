@@ -9,7 +9,7 @@ use definitions::{
     model::{ModelArgs, ModelDefinition},
 };
 
-pub fn impl_parse_models(stream: TokenStream) -> TokenStream {
+pub fn impl_parse_model(stream: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(stream);
 
     // let input_clone = input.clone();
@@ -40,7 +40,6 @@ pub fn impl_parse_models(stream: TokenStream) -> TokenStream {
 
                     field
                 })
-                // .flatten()
                 .collect::<Vec<_>>();
 
             let model = ModelDefinition {
@@ -51,10 +50,15 @@ pub fn impl_parse_models(stream: TokenStream) -> TokenStream {
 
             let config = config::standard();
             let raw = bincode::encode_to_vec(model, config).unwrap_or_default();
+
             quote! {
                 impl #ident {
+                    pub fn get_stream() -> Vec<u8> {
+                        vec![#(#raw),*]
+                    }
+
                     pub async fn write_stream(config: &Config) -> Result<(), Error> {
-                        let mut stream = vec![#(#raw),*];
+                        let mut stream = Self::get_stream();
                         ModellerExec::write_stream(&mut stream, config).await?;
 
                         Ok(())

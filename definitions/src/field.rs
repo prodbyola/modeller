@@ -61,6 +61,7 @@ impl FieldDefinition {
                 .as_ref()
                 .map(|v| format!("DEFAULT {}", v.trim()))
                 .unwrap_or_default();
+
             format!("{col} {col_type} {unique} {default_value} {primary}")
         }
     }
@@ -94,6 +95,10 @@ impl FieldDefinition {
 
     pub fn col_name(&self) -> &str {
         &self.col_name
+    }
+
+    pub fn foreign_key(&self) -> &Option<FkOptions> {
+        &self.foreign_key
     }
 }
 
@@ -135,7 +140,28 @@ pub struct FkOptions {
     on_delete: FkOnDelete,
 }
 
-#[derive(Debug, Default, Encode, Decode, FromMeta)]
+impl FkOptions {
+    pub fn references(&self) -> &str {
+        &self.references
+    }
+
+    pub fn on_delete(&self) -> &FkOnDelete {
+        &self.on_delete
+    }
+}
+
+impl FkOptions {
+    pub fn to_sql(&self, col_name: &str) -> String {
+        format!(
+            "FOREIGN KEY ({}) REFERENCES {} ON DELETE {}",
+            col_name,
+            self.references,
+            self.on_delete.to_sql()
+        )
+    }
+}
+
+#[derive(Debug, Default, Encode, Decode, PartialEq, FromMeta)]
 pub enum FkOnDelete {
     Cascade,
     Nullify,

@@ -44,10 +44,18 @@ impl ModelDefinition {
     }
 
     pub fn field_sqls(&self, bt: &BackendType) -> Vec<String> {
-        self.fields()
-            .iter()
-            .map(|field| field.to_sql(bt).trim().to_string())
-            .collect()
+        let mut sqls = Vec::new();
+
+        for field in &self.fields {
+            let col_sql = field.to_sql(bt).trim().to_string();
+            sqls.push(col_sql);
+
+            if let Some(fk) = field.foreign_key() {
+                sqls.push(fk.to_sql(field.col_name()));
+            }
+        }
+
+        sqls
     }
 
     /// Generate `ALTER TABLE` queries if changes are detected

@@ -1,5 +1,7 @@
 use std::{env, fmt::Display, io};
 
+use definitions::bincode;
+
 #[derive(Debug)]
 pub enum Error {
     VarError(env::VarError),
@@ -38,5 +40,11 @@ impl From<io::Error> for Error {
 impl From<rbatis::Error> for Error {
     fn from(value: rbatis::Error) -> Self {
         Error::DBError(value)
+    }
+}
+
+impl From<bincode::error::DecodeError> for Error {
+    fn from(value: bincode::error::DecodeError) -> Self {
+        Error::ParseError(value.to_string())
     }
 }

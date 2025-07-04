@@ -2,13 +2,16 @@ use std::path::PathBuf;
 
 use chrono::Utc;
 
-use crate::{config::Config, implementor::ModellerExec};
+use crate::{config::Config, exec::ModellerExec};
 
 mod config;
 mod errors;
-mod implementor;
+mod exec;
 
 pub mod prelude;
+#[cfg(test)]
+#[allow(dead_code)]
+mod tests;
 
 pub use errors::Error;
 
