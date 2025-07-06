@@ -22,6 +22,10 @@ impl ModelDefinition {
         &self.name
     }
 
+    pub fn unique_together(&self) -> &Option<Vec<String>> {
+        &self.unique_together
+    }
+
     pub fn fields(&self) -> &[FieldDefinition] {
         &self.fields
     }

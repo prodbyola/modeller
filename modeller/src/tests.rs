@@ -13,9 +13,11 @@ struct User {
 }
 
 #[derive(Modeller)]
+#[modeller(unique_together(user_id, project_id))]
 struct MockTable {
     #[modeller(foreign_key(references = "users(id)", on_delete = "cascade"))]
     pub user_id: u64,
+    pub project_id: u64,
 }
 
 #[test]
@@ -25,6 +27,23 @@ fn test_table_name() -> OpResult<()> {
 
     model = User::get_definition()?;
     assert_eq!(model.name(), "users");
+
+    Ok(())
+}
+
+#[test]
+fn test_unique_together() -> OpResult<()> {
+    let mut model = MockTable::get_definition()?;
+    let mut ut = model.unique_together();
+
+    assert!(ut.is_some());
+    if let Some(ut) = ut {
+        assert_eq!(ut.len(), 2)
+    }
+
+    model = User::get_definition()?;
+    ut = model.unique_together();
+    assert!(ut.is_none());
 
     Ok(())
 }
