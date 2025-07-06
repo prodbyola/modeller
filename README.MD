@@ -58,4 +58,9 @@ struct MockTable {
     pub user_id: u64,
     pub project_id: u64,
 }
+
+// CREATE TABLE mock_table (
+//  ...,
+//  UNIQUE (user_id, project_id)
+// );
 ```
