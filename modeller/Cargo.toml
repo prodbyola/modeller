@@ -4,8 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["streams", "bincode"]
-streams = []                     # enabled by default
+# default = ["bincode"]
 bincode = []
 
 [dependencies]

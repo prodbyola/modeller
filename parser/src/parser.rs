@@ -51,20 +51,25 @@ pub fn impl_parse_model(stream: TokenStream) -> TokenStream {
             let config = config::standard();
             let raw = bincode::encode_to_vec(model, config).unwrap_or_default();
 
-            quote! {
-                impl #ident {
-                    #[cfg(feature = "streams")]
-                    fn get_stream() -> Vec<u8> {
-                        vec![#(#raw),*]
-                    }
-
-                    #[cfg(feature = "bincode")]
+            let bincode_enabled = std::env::var("BINCODE_FEATURE_ENABLED").is_ok();
+            let bincode_features = if bincode_enabled {
+                quote! {
                     fn get_definition() -> OpResult<ModelDefinition> {
                         let stream = Self::get_stream();
                         let config = config::standard();
                         let (model, _): (ModelDefinition, _) = bincode::decode_from_slice(&stream, config)?;
 
                         Ok(model)
+                    }
+                }
+            } else {
+                quote! {}
+            };
+
+            quote! {
+                impl #ident {
+                    fn get_stream() -> Vec<u8> {
+                        vec![#(#raw),*]
                     }
 
                     pub async fn write_stream(config: &Config) -> Result<(), Error> {
@@ -73,6 +78,8 @@ pub fn impl_parse_model(stream: TokenStream) -> TokenStream {
 
                         Ok(())
                     }
+
+                    #bincode_features
                 }
             }
             .into()

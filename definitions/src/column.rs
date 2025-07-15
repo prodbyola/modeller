@@ -41,8 +41,7 @@ impl ColumnType {
         use ColumnType::*;
 
         match self {
-            Int8 => "BIT",
-            Int16 => "SMALLINT",
+            Int16 | Int8 => "SMALLINT",
             Int32 => "INTEGER",
             Int64 => "BIGINT",
             Text => "TEXT",

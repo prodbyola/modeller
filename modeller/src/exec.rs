@@ -20,12 +20,12 @@ impl ModellerExec {
     /// run Modeller instance
     pub async fn run(&self) -> OpResult<()> {
         self.connect().await?;
-        self.create_migrations_table().await?;
 
         // create metadata file if it does not exist
         let mf = self.metadata_filename();
         if !mf.is_file() {
             self.creation_metadata_file().await?;
+            self.create_migrations_table().await?;
         }
 
         // load raw data
@@ -55,7 +55,8 @@ impl ModellerExec {
         let table_name = self.config.migrations_table();
         let query = format!(
             "
-            CREATE TABLE IF NOT EXISTS {table_name} (
+            DROP TABLE IF EXISTS {table_name};
+            CREATE TABLE {table_name} (
                 filename VARCHAR(200) NOT NULL UNIQUE
             );"
         );
