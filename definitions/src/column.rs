@@ -5,6 +5,8 @@ use darling::FromMeta;
 use quote::ToTokens;
 use syn::Type;
 
+use crate::backend_type::BackendType;
+
 #[derive(Debug, Default, Encode, Decode, FromMeta)]
 pub(super) enum ColumnType {
     Int8,
@@ -20,14 +22,27 @@ pub(super) enum ColumnType {
 }
 
 impl ColumnType {
-    pub fn to_sql(&self, len: &Option<usize>) -> String {
+    pub fn to_sql(&self, len: &Option<usize>, bkt: &BackendType) -> String {
         use ColumnType::*;
 
         let len_str = len.map(|v| format!("({v})")).unwrap_or_default();
 
         // derive sql from ColumnType
         let sql = |col_type: &ColumnType| match col_type {
-            VarChar => format!("{}{len_str}", col_type.to_str()),
+            VarChar => match bkt {
+                BackendType::Sqlite => {
+                    if len.is_some() {
+                        format!("{}{len_str}", col_type.to_str())
+                    } else {
+                        "TEXT".to_string()
+                    }
+                }
+                _ => format!("{}{len_str}", col_type.to_str()),
+            },
+            Bool => match bkt {
+                BackendType::Sqlite => "BOOLEAN".to_string(),
+                _ => col_type.to_str().to_string(),
+            },
             _ => col_type.to_str().to_string(),
         };
 

@@ -53,7 +53,7 @@ impl FieldDefinition {
                 Sqlite => format!("{col} INTEGER PRIMARY KEY AUTOINCREMENT"),
             }
         } else {
-            let col_type = &self.col_type.to_sql(&self.length);
+            let col_type = &self.col_type.to_sql(&self.length, bt);
             let unique = if self.unique { "UNIQUE" } else { "" };
             let primary = if self.primary { "PRIMARY KEY" } else { "" };
             let default_value = &self

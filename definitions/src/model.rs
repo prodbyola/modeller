@@ -49,14 +49,19 @@ impl ModelDefinition {
 
     pub fn field_sqls(&self, bt: &BackendType) -> Vec<String> {
         let mut sqls = Vec::new();
+        let mut fks = Vec::new();
 
         for field in &self.fields {
             let col_sql = field.to_sql(bt).trim().to_string();
             sqls.push(col_sql);
 
             if let Some(fk) = field.foreign_key() {
-                sqls.push(fk.to_sql(field.col_name()));
+                fks.push(fk.to_sql(field.col_name()));
             }
+        }
+
+        if !fks.is_empty() {
+            sqls.append(&mut fks);
         }
 
         sqls
