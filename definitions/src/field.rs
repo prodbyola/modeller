@@ -136,13 +136,13 @@ impl PartialEq for FieldDefinition {
 
 #[derive(Debug, Default, Encode, Decode, FromMeta)]
 pub struct FkOptions {
-    references: String,
+    rf: String,
     on_delete: FkOnDelete,
 }
 
 impl FkOptions {
     pub fn references(&self) -> &str {
-        &self.references
+        &self.rf
     }
 
     pub fn on_delete(&self) -> &FkOnDelete {
@@ -155,7 +155,7 @@ impl FkOptions {
         format!(
             "FOREIGN KEY ({}) REFERENCES {} ON DELETE {}",
             col_name,
-            self.references,
+            self.rf,
             self.on_delete.to_sql()
         )
     }
