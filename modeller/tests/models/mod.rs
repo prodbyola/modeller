@@ -2,13 +2,11 @@ use modeller::prelude::*;
 
 #[derive(Modeller)]
 pub struct TestModel {
-    #[modeller(serial)]
     id: u64,
     country: Option<String>,
 
     #[modeller(name = "user_location", default = "Lagos", unique)]
     state: String,
-    
     // #[modeller(default=CURRENT_TIMESTAMP)]
     // created_at: Datetime
 }
@@ -16,7 +14,6 @@ pub struct TestModel {
 #[derive(Modeller)]
 #[modeller(table_name = "custom_table_name")]
 pub struct AnotherModel {
-    #[modeller(serial)]
     id: u64,
 
     #[modeller(unique, length = 12)]

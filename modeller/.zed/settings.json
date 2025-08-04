@@ -1,12 +1,11 @@
 {
   "lsp": {
     "rust-analyzer": {
-      "cargo": {
-        "features": ["bincode"]
+      "initialization_options": {
+        "cargo": {
+          "features": ["bincode"]
+        }
       }
-      // "check": {
-      //   "features": ["bincode"]
-      // }
     }
   }
 }

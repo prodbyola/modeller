@@ -11,8 +11,6 @@ use definitions::{
 
 pub fn impl_parse_model(stream: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(stream);
-
-    // let input_clone = input.clone();
     let ident = input.ident.clone();
 
     let mut name = parse_table_name(&ident);

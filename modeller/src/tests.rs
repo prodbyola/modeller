@@ -15,7 +15,7 @@ struct User {
 #[derive(Modeller)]
 #[modeller(unique_together(user_id, project_id))]
 struct MockTable {
-    #[modeller(foreign_key(references = "users(id)", on_delete = "cascade"))]
+    #[modeller(foreign_key(rf = "users(id)", on_delete = "cascade"))]
     pub user_id: u64,
     pub project_id: u64,
 }

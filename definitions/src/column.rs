@@ -7,7 +7,7 @@ use syn::Type;
 
 use crate::backend_type::BackendType;
 
-#[derive(Debug, Default, Encode, Decode, FromMeta)]
+#[derive(Debug, Default, Encode, Decode, FromMeta, Clone)]
 pub(super) enum ColumnType {
     Int8,
     Int16,
