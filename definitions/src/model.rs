@@ -1,29 +1,18 @@
 use crate::{backend_type::BackendType, field::FieldDefinition};
 use bincode::{Decode, Encode, config};
-use darling::{FromDeriveInput, util::PathList};
+use darling::{FromDeriveInput, FromMeta, util::PathList};
+use quote::ToTokens;
 
-#[derive(Default, FromDeriveInput, Debug)]
-#[darling(attributes(modeller), supports(struct_named))]
-pub struct ModelArgs {
-    #[darling(rename = "table_name")]
-    pub name: Option<String>,
-    pub unique_together: Option<PathList>,
-}
-
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, Default)]
 pub struct ModelDefinition {
     pub name: String,
-    pub unique_together: Option<Vec<String>>,
+    pub indexes: Vec<IndexDefinition>,
     pub fields: Vec<FieldDefinition>,
 }
 
 impl ModelDefinition {
     pub fn name(&self) -> &str {
         &self.name
-    }
-
-    pub fn unique_together(&self) -> &Option<Vec<String>> {
-        &self.unique_together
     }
 
     pub fn fields(&self) -> &[FieldDefinition] {
@@ -33,18 +22,19 @@ impl ModelDefinition {
     /// Generate `CREATE TABLE` sql query for the model.
     pub fn sql_create_table(&self, bt: &BackendType) -> String {
         let table_name = &self.name;
-        let mut field_sqls = self.field_sqls(bt);
+        let field_sqls = self.field_sqls(bt);
 
-        if let Some(ut_sql) = self.unique_together_sql(bt) {
-            field_sqls.push(ut_sql);
+        let mut output = format!(
+            "DROP TABLE IF EXISTS {table_name};\n\
+            CREATE TABLE {table_name} (\n\t{}\n);\n",
+            field_sqls.join(",\n\t")
+        );
+
+        for index in &self.indexes {
+            output.push_str(&format!("{}\n", index.to_sql(table_name)));
         }
 
-        format!(
-            "DROP TABLE IF EXISTS {table_name};\n\
-            CREATE TABLE {table_name} (\n\t{}\n);
-            ",
-            field_sqls.join(",\n\t")
-        )
+        output
     }
 
     pub fn field_sqls(&self, bt: &BackendType) -> Vec<String> {
@@ -97,7 +87,9 @@ impl ModelDefinition {
             };
         }
 
-        let mut queries = Vec::new();
+        let query_len = existing_cols.len() + new_cols.len() + self.fields.len();
+        let mut queries = Vec::with_capacity(query_len);
+
         // if we changed existing column, attempt to recreate the
         // table and refill with existing data
         if !existing_cols.is_empty() {
@@ -110,11 +102,7 @@ impl ModelDefinition {
             );
 
             // recreate table
-            let mut field_sqls = self.field_sqls(bt);
-            if let Some(ut_sql) = self.unique_together_sql(bt) {
-                field_sqls.push(ut_sql);
-            }
-
+            let field_sqls = self.field_sqls(bt);
             let create_table = format!(
                 "CREATE TABLE {table_name} (\n\t{}\n);\n",
                 field_sqls.join(",\n\t")
@@ -125,6 +113,7 @@ impl ModelDefinition {
             let move_data = format!(
                 "INSERT INTO {table_name} ({col_names}) \nSELECT {col_names} FROM {old_table_name};\n"
             );
+
             query.push_str(&move_data);
             query.push_str(&format!("DROP TABLE {old_table_name};"));
 
@@ -137,32 +126,15 @@ impl ModelDefinition {
             queries.push(query);
         }
 
+        for index in &self.indexes {
+            queries.push(index.to_sql(table_name));
+        }
+
         if queries.is_empty() {
             None
         } else {
             Some(queries.join("\n\n"))
         }
-    }
-
-    fn unique_together_sql(&self, bt: &BackendType) -> Option<String> {
-        use BackendType::*;
-
-        if let Some(cols) = &self.unique_together {
-            // let cols: Vec<&str> = ut.split(",").map(|c| c.trim()).collect();
-            if !cols.is_empty() {
-                let name = cols.join("_");
-                let list = cols.join(", ");
-                let sql = match bt {
-                    MySql => format!("UNIQUE KEY {name} ({list})"),
-                    Postgres => format!("CONSTRAINT {name} UNIQUE ({list})"),
-                    Sqlite => format!("UNIQUE ({list})"),
-                };
-
-                return Some(sql);
-            }
-        }
-
-        None
     }
 }
 
@@ -176,6 +148,65 @@ impl PartialEq for ModelDefinition {
             s == o
         } else {
             false
+        }
+    }
+}
+
+#[derive(Default, FromDeriveInput, Debug)]
+#[darling(attributes(modeller), supports(struct_named))]
+pub struct ModelArgs {
+    #[darling(rename = "table_name")]
+    pub name: Option<String>,
+
+    #[darling(multiple, default, rename = "index")]
+    pub indexes: Vec<IndexArgs>,
+}
+
+#[derive(Encode, Decode)]
+pub struct IndexDefinition {
+    pub fields: Vec<String>,
+    pub unique: bool,
+    pub name: String,
+}
+
+impl IndexDefinition {
+    fn to_sql(&self, table_name: &str) -> String {
+        let name = &self.name;
+        let unique = if self.unique { "UNIQUE" } else { "" };
+
+        format!(
+            "CREATE {unique} INDEX IF NOT EXISTS {name} ON {table_name} ({});",
+            self.fields.join(", ")
+        )
+    }
+}
+
+#[derive(Default, FromMeta, Debug)]
+pub struct IndexArgs {
+    pub fields: PathList,
+    pub unique: Option<bool>,
+    pub name: Option<String>,
+}
+
+impl From<&IndexArgs> for IndexDefinition {
+    fn from(value: &IndexArgs) -> Self {
+        let IndexArgs {
+            fields,
+            unique,
+            name,
+        } = value;
+
+        let fields: Vec<String> = fields
+            .iter()
+            .map(|name| name.to_token_stream().to_string())
+            .collect();
+
+        let name = name.clone().unwrap_or(format!("idx_{}", fields.join("_")));
+
+        IndexDefinition {
+            fields,
+            unique: unique.unwrap_or_default(),
+            name,
         }
     }
 }

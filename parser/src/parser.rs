@@ -13,16 +13,12 @@ pub fn impl_parse_model(stream: TokenStream) -> TokenStream {
     let input: DeriveInput = parse_macro_input!(stream);
     let ident = input.ident.clone();
 
-    let mut name = parse_table_name(&ident);
-    let mut unique_together = None;
+    let name = parse_table_name(&ident);
+    let mut model = ModelDefinition::default();
 
     if let Ok(args) = ModelArgs::from_derive_input(&input) {
-        name = args.name.unwrap_or(name);
-        unique_together = args.unique_together.map(|list| {
-            list.iter()
-                .map(|p| p.to_token_stream().to_string())
-                .collect()
-        });
+        model.name = args.name.unwrap_or(name);
+        model.indexes = args.indexes.iter().map(|i| i.into()).collect();
     }
 
     match input.data {
@@ -40,12 +36,7 @@ pub fn impl_parse_model(stream: TokenStream) -> TokenStream {
                 })
                 .collect::<Vec<_>>();
 
-            let model = ModelDefinition {
-                name,
-                unique_together,
-                fields,
-            };
-
+            model.fields = fields;
             let config = config::standard();
             let raw = bincode::encode_to_vec(model, config).unwrap_or_default();
 

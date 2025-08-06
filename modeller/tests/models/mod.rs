@@ -27,7 +27,7 @@ pub struct AnotherModel {
 }
 
 #[derive(Modeller)]
-#[modeller(unique_together(name, puk))]
+#[modeller(index(name = "name_x_puk", fields(name, puk), unique))]
 pub struct Product {
     id: u64,
     name: String,
