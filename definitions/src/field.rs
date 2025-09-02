@@ -53,7 +53,7 @@ impl FieldDefinition {
         let default_value = &self
             .default_value
             .as_ref()
-            .map(|v| format!("DEFAULT {}", v.trim()))
+            .map(|v| format!("DEFAULT \"{}\"", v.trim()))
             .unwrap_or_default();
 
         format!("{col} {col_type} {primary} {serial} {unique} {default_value}")
