@@ -34,7 +34,7 @@ impl ModellerExec {
             let query = self.init_query(&stream).await?;
             Some(query)
         } else if metadata != stream {
-            self.generate_migrations(&stream, &metadata).await?
+            self.updated_query(&stream, &metadata).await?
         } else {
             None
         };
@@ -134,8 +134,8 @@ impl ModellerExec {
         Ok(())
     }
 
-    /// Generate migration for changed models if any.
-    async fn generate_migrations(
+    /// Generate query for updated models if any.
+    async fn updated_query(
         &self,
         stream: &[u8],
         metadata: &[u8],
