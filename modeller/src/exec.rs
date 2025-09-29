@@ -1,8 +1,7 @@
 use definitions::bincode::{self, config};
-use rbs::Value;
 use std::path::PathBuf;
 
-use crate::{OpResult, config::Config, errors::Error, generate_migration_filename, open_file};
+use crate::{OpResult, config::Config, errors::Error, open_file};
 use definitions::{backend_type::BackendType, model::ModelDefinition};
 use rbatis::RBatis;
 use rbdc_mysql::MysqlDriver;
@@ -25,43 +24,35 @@ impl ModellerExec {
         let mf = self.metadata_filename();
         if !mf.is_file() {
             self.creation_metadata_file().await?;
-            self.create_migrations_table().await?;
         }
 
         // load raw data
         let stream = self.load_stream().await?;
         let metadata = self.load_metadata().await?;
 
-        if metadata.is_empty() {
-            self.init_query(&stream).await?;
+        let sql = if metadata.is_empty() {
+            let query = self.init_query(&stream).await?;
+            Some(query)
         } else if metadata != stream {
-            self.generate_migrations(&stream, &metadata).await?;
+            self.generate_migrations(&stream, &metadata).await?
         } else {
-            println!("modeller: no model changes detected.")
-        }
+            None
+        };
 
         // run migrations and update metadata
-        self.run_pending_migrations().await?;
-        self.update_metadata(&stream).await?;
+        match sql {
+            Some(sql) => {
+                self.pool.exec(&sql, vec![]).await?;
+                self.update_metadata(&stream).await?;
+            }
+            None => {
+                println!("modeller: no changes detected")
+            }
+        }
 
         // remove raw stream
         self.remove_stream().await?;
 
-        Ok(())
-    }
-
-    /// create migrations table if it does not exist
-    async fn create_migrations_table(&self) -> OpResult<()> {
-        let table_name = self.config.migrations_table();
-        let query = format!(
-            "
-            DROP TABLE IF EXISTS {table_name};
-            CREATE TABLE {table_name} (
-                filename VARCHAR(200) NOT NULL UNIQUE
-            );"
-        );
-
-        self.pool.exec(&query, vec![]).await?;
         Ok(())
     }
 
@@ -93,7 +84,7 @@ impl ModellerExec {
     ///
     /// Once the query is generated, we write it to our first
     /// migration file.
-    async fn init_query(&self, stream: &[u8]) -> OpResult<()> {
+    async fn init_query(&self, stream: &[u8]) -> OpResult<String> {
         // generate initial query for all models
         let models = decode_raw(stream)?;
         let create_sqls: Vec<String> = models
@@ -101,16 +92,8 @@ impl ModellerExec {
             .map(|model| model.sql_create_table(&self.bt))
             .collect();
 
-        // wite the query to first migrations file
-        let filename = generate_migration_filename();
-        let path = self.get_migration_child(&filename);
-
-        let mut file = open_file(&path).await?;
         let content = create_sqls.join("\n");
-
-        file.write_all(content.as_bytes()).await?;
-
-        Ok(())
+        Ok(content)
     }
 
     pub fn new(config: &Config) -> Self {
@@ -125,12 +108,6 @@ impl ModellerExec {
             bt,
             config: config.clone(),
         }
-    }
-
-    /// Get the name of a file or folder within migrations folder
-    fn get_migration_child(&self, child_name: &str) -> PathBuf {
-        let dir = &self.config.migrations_dir();
-        dir.join(child_name)
     }
 
     fn metadata_filename(&self) -> PathBuf {
@@ -148,86 +125,6 @@ impl ModellerExec {
         }
     }
 
-    /// get list previously ran migrations from database
-    async fn previous_migrations(&self) -> OpResult<Vec<String>> {
-        let table_name = self.config.migrations_table();
-        let done_migs = self
-            .pool
-            .query(&format!("SELECT filename from {table_name}"), vec![])
-            .await?;
-
-        let results: Vec<String> = done_migs
-            .as_array()
-            .map(|rows| {
-                rows.iter()
-                    .filter_map(|v| v.as_map().map(|m| m.get(&Value::from("filename")).into()))
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        Ok(results)
-    }
-
-    /// get list of all migration files from migrations directory
-    async fn migration_files(&self) -> OpResult<Vec<PathBuf>> {
-        let dir = &self.config.migrations_dir();
-
-        let mut entries = tokio::fs::read_dir(dir).await?;
-        let mut paths = Vec::new();
-
-        while let Some(entry) = entries.next_entry().await? {
-            paths.push(entry.path());
-        }
-
-        Ok(paths)
-    }
-
-    async fn run_pending_migrations(&self) -> OpResult<()> {
-        let pvs = self.previous_migrations().await?;
-        let mfs = self.migration_files().await?;
-
-        let metafile = self.metadata_filename();
-        let streamfile = self.get_migration_child("stream");
-
-        let new_migrations: Vec<&PathBuf> = mfs
-            .iter()
-            .filter(|filepath| {
-                // exclude other files
-                if [&metafile, &streamfile].contains(filepath) {
-                    return false;
-                }
-
-                let exists = pvs.iter().find(|pv| {
-                    filepath
-                        .to_str()
-                        .map(|path| path == pv.as_str())
-                        .unwrap_or_default()
-                });
-                exists.is_none()
-            })
-            .collect();
-
-        if !new_migrations.is_empty() {
-            for mig in new_migrations {
-                // run the migration
-                let content = tokio::fs::read(mig).await?;
-                let sql = String::from_utf8(content).map_err(|err| {
-                    Error::InternalError(format!("error parsing migration content {mig:?}: {err}"))
-                })?;
-
-                self.pool.exec(&sql, vec![]).await?;
-
-                // update migration status
-                let table_name = self.config.migrations_table();
-                let filename = mig.to_str().unwrap_or("");
-                let insert_query = format!("INSERT INTO {table_name} (filename) VALUES(?)");
-                self.pool.exec(&insert_query, vec![filename.into()]).await?;
-            }
-        }
-
-        Ok(())
-    }
-
     async fn update_metadata(&self, stream: &[u8]) -> OpResult<()> {
         // write metadata
         let mf = self.metadata_filename();
@@ -238,7 +135,12 @@ impl ModellerExec {
     }
 
     /// Generate migration for changed models if any.
-    async fn generate_migrations(&self, stream: &[u8], metadata: &[u8]) -> OpResult<()> {
+    async fn generate_migrations(
+        &self,
+        stream: &[u8],
+        metadata: &[u8],
+    ) -> OpResult<Option<String>> {
+        let mut content = None;
         let pm = decode_raw(metadata)?; // previous models
         let cm = decode_raw(stream)?; // current models
 
@@ -262,17 +164,10 @@ impl ModellerExec {
         }
 
         if !queries.is_empty() {
-            // wite query to migration file
-            let filename = generate_migration_filename();
-            let file = self.get_migration_child(&filename);
-
-            let mut file = open_file(&file).await?;
-            let content = queries.join("\n\n");
-
-            file.write_all(content.as_bytes()).await?;
+            content = Some(queries.join("\n\n"));
         }
 
-        Ok(())
+        Ok(content)
     }
 
     /// Write generated metadata streams to metadata file
