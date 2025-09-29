@@ -167,7 +167,7 @@ impl ModellerExec {
     }
 
     /// Write generated metadata streams to metadata file
-    pub async fn write_stream(stream: &mut Vec<u8>, config: &mut Config) -> OpResult<()> {
+    pub fn write_stream(stream: &mut Vec<u8>, config: &mut Config) {
         let stream_size = stream.len() as u32;
         let mut stream_size_block = stream_size.to_ne_bytes().to_vec();
 
@@ -197,8 +197,6 @@ impl ModellerExec {
         content.append(&mut models);
 
         config.write_streams(content);
-
-        Ok(())
     }
 }
 

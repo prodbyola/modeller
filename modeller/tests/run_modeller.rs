@@ -11,9 +11,9 @@ mod models;
 async fn test_modeller() -> OpResult<()> {
     // write streams for each model
     let mut config = Config::default();
-    TestModel::write_stream(&mut config).await?;
-    AnotherModel::write_stream(&mut config).await?;
-    Product::write_stream(&mut config).await?;
+    TestModel::write_stream(&mut config);
+    AnotherModel::write_stream(&mut config);
+    Product::write_stream(&mut config);
 
     // in your main, lib or mod
     let runner = run_modeller(&config).await;
@@ -31,9 +31,9 @@ async fn test_modeller() -> OpResult<()> {
 async fn test_modeller_version2() -> OpResult<()> {
     // write streams for each model
     let mut config = Config::default();
-    TestModel::write_stream(&mut config).await?;
-    AnotherModel::write_stream(&mut config).await?;
-    Product::write_stream(&mut config).await?;
+    TestModel::write_stream(&mut config);
+    AnotherModel::write_stream(&mut config);
+    Product::write_stream(&mut config);
 
     // in your main, lib or mod
     let runner = run_modeller(&config).await;
