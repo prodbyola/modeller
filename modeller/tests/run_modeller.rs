@@ -1,19 +1,16 @@
-use std::sync::Mutex;
-
 use modeller::prelude::*;
 
 use models::*;
-use once_cell::sync::Lazy;
+use serial_test::serial;
 
 #[allow(dead_code)]
 mod models;
 
-static LAZY_CONFIG: Lazy<Mutex<Config>> = Lazy::new(|| Mutex::new(Config::default()));
-
 #[tokio::test]
+#[serial]
 async fn test_modeller() -> OpResult<()> {
     // write streams for each model
-    let config = LAZY_CONFIG.lock().unwrap();
+    let config = Config::default();
     TestModel::write_stream(&config).await?;
     AnotherModel::write_stream(&config).await?;
     Product::write_stream(&config).await?;
@@ -30,9 +27,10 @@ async fn test_modeller() -> OpResult<()> {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_modeller_version2() -> OpResult<()> {
     // write streams for each model
-    let config = LAZY_CONFIG.lock().unwrap();
+    let config = Config::default();
     TestModel::write_stream(&config).await?;
     AnotherModel::write_stream(&config).await?;
     Product::write_stream(&config).await?;
