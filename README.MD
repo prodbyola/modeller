@@ -17,10 +17,10 @@ Modeller is designed for with ease of integration in mind:
     }
 
     // 2. Get Modeller Config. You can also use ConfigBuilder to create custom configuration
-    let config = Config::default();
+    let mut config = Config::default();
 
     // 3. write data streams for each model.
-    TestModel::write_stream(&config).await?;
+    TestModel::write_stream(&config);
 
     // 4. run modeller instance
     run_modeller(&config).await?;
