@@ -31,9 +31,9 @@ impl ModellerExec {
         let metadata = self.load_metadata().await?;
 
         let sql = if metadata.is_empty() {
-            let query = self.init_query(&stream).await?;
+            let query = self.init_query(stream).await?;
             Some(query)
-        } else if &metadata != stream {
+        } else if metadata != stream {
             self.updated_query(stream, &metadata).await?
         } else {
             None
@@ -43,7 +43,7 @@ impl ModellerExec {
         match sql {
             Some(sql) => {
                 self.pool.exec(&sql, vec![]).await?;
-                self.update_metadata(&stream).await?;
+                self.update_metadata(stream).await?;
             }
             None => {
                 println!("modeller: no changes detected")
