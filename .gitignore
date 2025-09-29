@@ -1,3 +1,4 @@
 /target
 /modeller/db.sqlite*
 /modeller/migrations
+**modeller_data
