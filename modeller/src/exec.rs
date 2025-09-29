@@ -27,14 +27,14 @@ impl ModellerExec {
         }
 
         // load raw data
-        let stream = self.load_stream().await?;
+        let stream = self.config.streams();
         let metadata = self.load_metadata().await?;
 
         let sql = if metadata.is_empty() {
             let query = self.init_query(&stream).await?;
             Some(query)
-        } else if metadata != stream {
-            self.updated_query(&stream, &metadata).await?
+        } else if &metadata != stream {
+            self.updated_query(stream, &metadata).await?
         } else {
             None
         };
@@ -49,9 +49,6 @@ impl ModellerExec {
                 println!("modeller: no changes detected")
             }
         }
-
-        // remove raw stream
-        self.remove_stream().await?;
 
         Ok(())
     }
@@ -97,7 +94,6 @@ impl ModellerExec {
     }
 
     pub fn new(config: &Config) -> Self {
-        // let config = config.unwrap_or_default();
         let db_url = config.db_url();
 
         let bt = db_url.into();
@@ -171,20 +167,7 @@ impl ModellerExec {
     }
 
     /// Write generated metadata streams to metadata file
-    pub async fn write_stream(stream: &mut Vec<u8>, config: &Config) -> OpResult<()> {
-        let mig_dir = config.migrations_dir();
-        let stream_path = config.stream_path();
-
-        if !mig_dir.is_dir() {
-            tokio::fs::create_dir_all(mig_dir).await?;
-        }
-
-        let mut file = tokio::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(&stream_path)
-            .await?;
-
+    pub async fn write_stream(stream: &mut Vec<u8>, config: &mut Config) -> OpResult<()> {
         let stream_size = stream.len() as u32;
         let mut stream_size_block = stream_size.to_ne_bytes().to_vec();
 
@@ -192,13 +175,12 @@ impl ModellerExec {
         let mut blocks = Vec::new();
         let mut models = Vec::new();
         let mut content = Vec::new();
-
-        let fc = tokio::fs::read(stream_path).await?;
-
-        // check if stream file already exists
-        if let Some(count) = fc.first() {
+        
+        // check if stream already exists
+        let stream_exists = config.streams();
+        if let Some(count) = stream_exists.first() {
             let total_blocks = (*count as usize) * 4;
-            let mut iter = fc.iter();
+            let mut iter = stream_exists.iter();
             iter.next(); // take out first byte (count)
 
             blocks = iter.clone().take(total_blocks).copied().collect();
@@ -214,21 +196,8 @@ impl ModellerExec {
         content.append(&mut blocks);
         content.append(&mut models);
 
-        file.write_all(&content).await?;
+        config.write_streams(content);
 
-        Ok(())
-    }
-
-    async fn load_stream(&self) -> OpResult<Vec<u8>> {
-        let mf = &self.config.stream_path();
-        let content = tokio::fs::read(&mf).await?;
-
-        Ok(content)
-    }
-
-    async fn remove_stream(&self) -> OpResult<()> {
-        let mp = &self.config.stream_path();
-        tokio::fs::remove_file(mp).await?;
         Ok(())
     }
 }

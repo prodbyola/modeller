@@ -61,7 +61,7 @@ pub fn impl_parse_model(stream: TokenStream) -> TokenStream {
                         vec![#(#raw),*]
                     }
 
-                    pub async fn write_stream(config: &Config) -> Result<(), Error> {
+                    pub async fn write_stream(config: &mut Config) -> Result<(), Error> {
                         let mut stream = Self::get_stream();
                         ModellerExec::write_stream(&mut stream, config).await?;
 
