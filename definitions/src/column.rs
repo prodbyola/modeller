@@ -116,6 +116,8 @@ impl<'a> From<&'a str> for ColumnType {
                 "TEXT" => Text,
                 "DATETIME" => Datetime,
                 "BOOL" => Bool,
+                "REAL" => Float32,
+                "DOUBLE PRECISION" => Float64,
                 _ => panic!("ColumnDefinition not implemented for {ty}"),
             }
         }
