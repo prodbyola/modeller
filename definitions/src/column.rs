@@ -19,6 +19,8 @@ pub(super) enum ColumnType {
     Datetime,
     Nullable(Box<ColumnType>),
     Bool,
+    Float32,
+    Float64
 }
 
 impl ColumnType {
@@ -43,6 +45,10 @@ impl ColumnType {
                 BackendType::Sqlite => "BOOLEAN".to_string(),
                 _ => col_type.to_str().to_string(),
             },
+            Float32 => match bkt {
+                BackendType::MySql => "FLOAT".to_string(),
+                _ => col_type.to_str().to_string(),
+            },
             _ => col_type.to_str().to_string(),
         };
 
@@ -63,6 +69,8 @@ impl ColumnType {
             VarChar => "VARCHAR",
             Datetime => "TIMESTAMP",
             Nullable(inner) => inner.to_str(),
+            Float64 => "DOUBLE PRECISION",
+            Float32 => "REAL",
             Bool => "BOOL",
         }
     }
@@ -79,6 +87,8 @@ impl ColumnType {
             "Text" => Text,
             "Timestamp" | "DateTime" => Datetime,
             "bool" => Bool,
+            "f32" => Float32,
+            "f64" => Float64,
             _ => panic!("ColumnDefinition not implemented for {ty}"),
         }
     }
